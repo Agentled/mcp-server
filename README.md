@@ -158,6 +158,12 @@ market position, team, and funding, then generates a structured investment memo"
 | `query_kg_edges` | Query knowledge graph edges |
 | `get_scoring_history` | Get scoring history for an entity |
 
+### Conversational Agent
+
+| Tool | Description |
+|------|-------------|
+| `chat` | Send a message to the AgentLed AI agent. Build workflows through natural language — no JSON required. Supports multi-turn conversations via session_id. |
+
 ### Coming from n8n?
 
 Import existing n8n workflows and make them AI-native:

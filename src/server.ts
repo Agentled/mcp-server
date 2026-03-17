@@ -11,6 +11,7 @@ import { registerExecutionTools } from './tools/executions.js';
 import { registerAppTools } from './tools/apps.js';
 import { registerTestingTools } from './tools/testing.js';
 import { registerKnowledgeTools } from './tools/knowledge.js';
+import { registerChatTools } from './tools/chat.js';
 import { registerAppResources } from './resources/apps.js';
 import { registerWorkflowResources } from './resources/workflows.js';
 
@@ -28,6 +29,7 @@ export function createServer(): McpServer {
     registerAppTools(server, client);
     registerTestingTools(server, client);
     registerKnowledgeTools(server, client);
+    registerChatTools(server, client);
 
     // Register resources
     registerAppResources(server, client);

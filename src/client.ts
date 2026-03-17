@@ -272,6 +272,15 @@ export class AgentledClient {
         return this.request(`/knowledge/graph/scoring${qs ? `?${qs}` : ''}`);
     }
 
+    // --- Chat ---
+
+    async chat(message: string, sessionId?: string) {
+        return this.request('/chat', {
+            method: 'POST',
+            body: JSON.stringify({ message, sessionId }),
+        });
+    }
+
     // --- n8n Import ---
 
     async previewN8nImport(

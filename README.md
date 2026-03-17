@@ -1,19 +1,26 @@
 # @agentled/mcp-server
 
-MCP server for [Agentled](https://www.agentled.app) — create, manage, and run automation workflows from Claude Code.
+> Build and run AI-powered business workflows from your IDE — lead gen, content publishing, research, and more.
 
-## Quick Setup
+[![npm version](https://img.shields.io/npm/v/@agentled/mcp-server.svg)](https://www.npmjs.com/package/@agentled/mcp-server)
+[![license](https://img.shields.io/npm/l/@agentled/mcp-server.svg)](https://github.com/Agentled/mcp-server/blob/main/LICENSE)
+
+## What is Agentled?
+
+[Agentled](https://www.agentled.app) is an AI workflow automation platform. Connect 30+ apps (LinkedIn, CRMs, email, web scraping, AI models), build multi-step workflows visually or via API, and run them at scale. This MCP server lets you create, manage, and execute those workflows directly from Claude Code.
+
+## Quick Start
 
 ```bash
 claude mcp add agentled \
   -e AGENTLED_API_KEY=wsk_... \
   -e AGENTLED_URL=https://www.agentled.app \
-  -- agentled-mcp-server
+  -- npx -y @agentled/mcp-server
 ```
 
 ### Getting your API key
 
-1. Go to your [Agentled workspace](https://www.agentled.app)
+1. Sign up at [agentled.app](https://www.agentled.app)
 2. Open **Workspace Settings > Developer**
 3. Generate a new API key (starts with `wsk_`)
 
@@ -23,6 +30,32 @@ claude mcp add agentled \
 |----------|----------|-------------|
 | `AGENTLED_API_KEY` | Yes | Workspace API key (`wsk_...`) |
 | `AGENTLED_URL` | No | API base URL (default: `https://www.agentled.app`) |
+
+## What Can You Build?
+
+### Lead Enrichment & Outreach
+Find SaaS CEOs on LinkedIn, enrich their data, score them, and sync to your CRM — all from a single prompt.
+
+```
+"Create a workflow that takes a LinkedIn company URL, enriches the company data,
+finds decision-maker emails, scores them by ICP fit, and saves results to a knowledge list"
+```
+
+### Content Publishing Pipeline
+Generate SEO content, create visuals, and publish across LinkedIn, Twitter, and your blog.
+
+```
+"Build a workflow that scrapes a competitor's blog, generates a better article
+with AI, and drafts a LinkedIn post summarizing the key insights"
+```
+
+### Company Research & Reports
+Research any company, analyze competitors, and generate investor-ready reports.
+
+```
+"Create a workflow that researches a company from its URL, analyzes their
+market position, team, and funding, then generates a structured investment memo"
+```
 
 ## Available Tools
 
@@ -87,19 +120,35 @@ claude mcp add agentled \
 | `preview_n8n_import` | Preview an n8n workflow import (dry run) |
 | `import_n8n_workflow` | Import an n8n workflow into Agentled |
 
-## Example Usage
+## Example: Quick Start Workflow
 
-Once connected, you can ask Claude Code to:
+Once connected, try this in Claude Code:
 
-- "List my workflows"
-- "Create a workflow that scrapes a URL and summarizes the content"
-- "Show me the last 5 executions of my lead scoring workflow"
-- "Test the LinkedIn company enrichment action with this URL"
+```
+"List my available apps and show me what actions I can use with LinkedIn enrichment"
+```
+
+Then build your first workflow:
+
+```
+"Create a workflow called 'Company Research' that:
+1. Takes a company URL as input
+2. Scrapes the website for key info
+3. Uses AI to analyze the company and generate a summary report
+4. Stores the results in a knowledge list"
+```
+
+## Links
+
+- [Agentled Platform](https://www.agentled.app)
+- [npm Package](https://www.npmjs.com/package/@agentled/mcp-server)
+- [GitHub](https://github.com/Agentled/mcp-server)
+- [Report Issues](https://github.com/Agentled/mcp-server/issues)
 
 ## Building from Source
 
 ```bash
-git clone https://github.com/agentled/mcp-server.git
+git clone https://github.com/Agentled/mcp-server.git
 cd mcp-server
 npm install
 npm run build

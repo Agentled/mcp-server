@@ -1,6 +1,6 @@
 # @agentled/mcp-server
 
-> Intelligent AI workflow orchestration with long-term memory — from Claude, Codex, or any MCP client.
+> Intelligent AI workflow orchestration with long-term memory, 100+ integrations, unified credits — from Claude, Codex, or any MCP client.
 
 [![npm version](https://img.shields.io/npm/v/@agentled/mcp-server.svg)](https://www.npmjs.com/package/@agentled/mcp-server)
 [![license](https://img.shields.io/npm/l/@agentled/mcp-server.svg)](https://github.com/Agentled/mcp-server/blob/main/LICENSE)

@@ -1,13 +1,45 @@
 # @agentled/mcp-server
 
-> Build and run AI-powered business workflows from your IDE — lead gen, content publishing, research, and more.
+> Intelligent AI workflow orchestration with long-term memory — from Claude, Codex, or any MCP client.
 
 [![npm version](https://img.shields.io/npm/v/@agentled/mcp-server.svg)](https://www.npmjs.com/package/@agentled/mcp-server)
 [![license](https://img.shields.io/npm/l/@agentled/mcp-server.svg)](https://github.com/Agentled/mcp-server/blob/main/LICENSE)
 
 ## What is Agentled?
 
-[Agentled](https://www.agentled.app) is an AI workflow automation platform. Connect 30+ apps (LinkedIn, CRMs, email, web scraping, AI models), build multi-step workflows visually or via API, and run them at scale. This MCP server lets you create, manage, and execute those workflows directly from Claude Code.
+[Agentled](https://www.agentled.app) is an AI-native workflow automation platform with persistent business memory. 100+ integrations (30 native + Composio), a Knowledge Graph that learns across executions, and a unified credit system replacing 100+ separate API accounts. This MCP server lets you create, manage, and execute workflows from Claude, Codex, Cursor, Windsurf, or any MCP-compatible client.
+
+## Why Agentled MCP?
+
+### One API Key. One Credit System. 100+ Services.
+
+No need to sign up for LinkedIn APIs, email services, web scrapers, video generators, or AI models separately. Agentled handles all integrations through a single credit system.
+
+| Capability | Credits | Without Agentled |
+|-----------|---------|-----------------|
+| LinkedIn company enrichment | 50 | LinkedIn API ($99/mo+) |
+| Email finding & verification | 5 | Hunter.io ($49/mo) |
+| AI analysis (Claude/GPT/Gemini) | 10-30 | Multiple API keys + billing |
+| Web scraping | 3-10 | Apify account ($49/mo+) |
+| Image generation | 30 | DALL-E/Midjourney subscription |
+| Video generation (8s scene) | 300 | RunwayML ($15/mo+) |
+| Text-to-speech | 60 | ElevenLabs ($22/mo+) |
+| Knowledge Graph storage | 1-2 | Custom infrastructure |
+| CRM sync (Affinity, HubSpot) | 5-10 | CRM API + middleware |
+
+### Intelligent Orchestration
+
+Unlike trigger-action tools, Agentled workflows have AI reasoning at every step. Multi-model support (Claude, GPT-4, Gemini, Mistral, DeepSeek, Moonshot), adaptive execution, and human-in-the-loop approval gates when needed.
+
+### Long-Term Memory via Knowledge Graph
+
+Every workflow execution builds your business knowledge base. Query past insights in future workflows. Feedback loops that improve matching, scoring, and decisions over time.
+
+```
+Workflow 1: Research 100 companies → Store insights in KG
+Workflow 2: "Find companies similar to our best customers" → KG already knows
+Workflow 3: Score new leads → Uses feedback from all previous workflows
+```
 
 ## Quick Start
 
@@ -33,29 +65,40 @@ claude mcp add agentled \
 
 ## What Can You Build?
 
-### Lead Enrichment & Outreach
-Find SaaS CEOs on LinkedIn, enrich their data, score them, and sync to your CRM — all from a single prompt.
+### Lead Enrichment & Sales Automation
+
+Find prospects on LinkedIn, enrich data, score by ICP fit, personalized outreach at scale, CRM sync with scoring history. *The entire sales dev workflow in one prompt.*
 
 ```
 "Create a workflow that takes a LinkedIn company URL, enriches the company data,
 finds decision-maker emails, scores them by ICP fit, and saves results to a knowledge list"
 ```
 
-### Content Publishing Pipeline
-Generate SEO content, create visuals, and publish across LinkedIn, Twitter, and your blog.
+### Content & Media Production
+
+Generate videos, images, voiceovers, AI-written articles and social posts, multi-channel publishing. *From idea to published across all channels in one workflow.*
 
 ```
 "Build a workflow that scrapes a competitor's blog, generates a better article
-with AI, and drafts a LinkedIn post summarizing the key insights"
+with AI, creates a thumbnail image, and drafts posts for LinkedIn and Twitter"
 ```
 
-### Company Research & Reports
-Research any company, analyze competitors, and generate investor-ready reports.
+### Company Research & Intelligence
+
+Website analysis, competitor research, investment memo generation, market analysis with AI reasoning. Results stored in KG for future queries. *Your AI research team that remembers everything.*
 
 ```
 "Create a workflow that researches a company from its URL, analyzes their
 market position, team, and funding, then generates a structured investment memo"
 ```
+
+## Built-in Capabilities
+
+**Media Production:** Video generation, image generation, text-to-speech, auto-captions, media assembly
+
+**AI Intelligence:** Multi-model AI (Claude, GPT-4, Gemini, Mistral, DeepSeek, Moonshot, xAI), Knowledge Graph, feedback loops, scoring & analytics
+
+**Data & Integration:** LinkedIn (search, enrich, post), email (send, personalize), web scraping, social publishing, CRM sync, document analysis, OCR
 
 ## Available Tools
 
@@ -113,30 +156,26 @@ market position, team, and funding, then generates a structured investment memo"
 | `query_kg_edges` | Query knowledge graph edges |
 | `get_scoring_history` | Get scoring history for an entity |
 
-### n8n Migration
+### Coming from n8n?
+
+Import existing n8n workflows and make them AI-native:
 
 | Tool | Description |
 |------|-------------|
 | `preview_n8n_import` | Preview an n8n workflow import (dry run) |
 | `import_n8n_workflow` | Import an n8n workflow into Agentled |
 
-## Example: Quick Start Workflow
+## For Agencies: White-Label Ready
 
-Once connected, try this in Claude Code:
+Build workflows once, deploy to multiple clients under your own brand. Custom domain, your logo and colors, client workspace separation, billing management.
 
-```
-"List my available apps and show me what actions I can use with LinkedIn enrichment"
-```
+## Works With
 
-Then build your first workflow:
-
-```
-"Create a workflow called 'Company Research' that:
-1. Takes a company URL as input
-2. Scrapes the website for key info
-3. Uses AI to analyze the company and generate a summary report
-4. Stores the results in a knowledge list"
-```
+- **Claude Code** (Anthropic)
+- **Codex** (OpenAI)
+- **Cursor**
+- **Windsurf**
+- Any MCP-compatible client
 
 ## Links
 

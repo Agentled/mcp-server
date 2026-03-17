@@ -1,7 +1,7 @@
 {
   "name": "@agentled/mcp-server",
-  "version": "0.1.0",
-  "description": "MCP server for Agentled — create, manage, and run workflows from Claude Code",
+  "version": "0.1.1",
+  "description": "MCP server for Agentled — intelligent AI workflow orchestration with long-term memory. Build, manage, and run workflows from Claude, Codex, or any MCP client.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -34,8 +34,14 @@
     "agentled",
     "workflows",
     "claude-code",
+    "codex",
+    "cursor",
     "automation",
-    "ai-agents"
+    "ai-agents",
+    "knowledge-graph",
+    "lead-generation",
+    "orchestration",
+    "white-label"
   ],
   "author": "Agentled",
   "homepage": "https://www.agentled.app",

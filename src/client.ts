@@ -143,6 +143,23 @@ export class AgentledClient {
         return this.request(`/workflows/${workflowId}/executions/${executionId}`);
     }
 
+    async listTimelines(workflowId: string, executionId: string, params?: {
+        limit?: number;
+        nextToken?: string;
+        direction?: 'asc' | 'desc';
+    }) {
+        const query = new URLSearchParams();
+        if (params?.limit) query.set('limit', String(params.limit));
+        if (params?.nextToken) query.set('nextToken', params.nextToken);
+        if (params?.direction) query.set('direction', params.direction);
+        const qs = query.toString();
+        return this.request(`/workflows/${workflowId}/executions/${executionId}/timelines${qs ? `?${qs}` : ''}`);
+    }
+
+    async getTimeline(workflowId: string, executionId: string, timelineId: string) {
+        return this.request(`/workflows/${workflowId}/executions/${executionId}/timelines/${timelineId}`);
+    }
+
     async stopExecution(workflowId: string, executionId: string) {
         return this.request(`/workflows/${workflowId}/executions/${executionId}/stop`, {
             method: 'POST',
@@ -152,14 +169,13 @@ export class AgentledClient {
     async retryExecution(
         workflowId: string,
         executionId: string,
-        options?: { timelineId?: string; forceWithoutCache?: boolean; rerunMode?: string }
+        options?: { timelineId?: string; forceWithoutCache?: boolean }
     ) {
         return this.request(`/workflows/${workflowId}/executions/${executionId}/retry`, {
             method: 'POST',
             body: JSON.stringify({
                 timelineId: options?.timelineId,
                 forceWithoutCache: options?.forceWithoutCache,
-                rerunMode: options?.rerunMode,
             }),
         });
     }

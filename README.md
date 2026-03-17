@@ -133,6 +133,8 @@ market position, team, and funding, then generates a structured investment memo"
 | `start_workflow` | Start a workflow execution with input |
 | `list_executions` | List executions for a workflow |
 | `get_execution` | Get execution details with step results |
+| `list_timelines` | List step execution records (timelines) for an execution |
+| `get_timeline` | Get a single timeline by ID with full step output |
 | `stop_execution` | Stop a running execution |
 | `retry_execution` | Retry a failed execution |
 

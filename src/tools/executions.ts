@@ -69,6 +69,45 @@ Use this to inspect what a workflow produced, debug failures, or check intermedi
     );
 
     server.tool(
+        'list_timelines',
+        `List timelines (step execution records) for a specific execution. Each timeline represents a step that ran, with its status, output, and metadata. Use this to inspect individual step results, debug failures, or see the execution flow.`,
+        {
+            workflowId: z.string().describe('The workflow ID'),
+            executionId: z.string().describe('The execution ID'),
+            limit: z.number().optional().describe('Max results (default 50, max 500)'),
+            direction: z.enum(['asc', 'desc']).optional().describe('Sort order by creation time (default: desc)'),
+        },
+        async ({ workflowId, executionId, limit, direction }) => {
+            const result = await client.listTimelines(workflowId, executionId, { limit, direction });
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
+        'get_timeline',
+        `Get a single timeline (step execution record) by ID. Returns the full timeline including eventContent (step output), status, metadata, and context. Use this to inspect a specific step's result in detail.`,
+        {
+            workflowId: z.string().describe('The workflow ID'),
+            executionId: z.string().describe('The execution ID'),
+            timelineId: z.string().describe('The timeline ID'),
+        },
+        async ({ workflowId, executionId, timelineId }) => {
+            const result = await client.getTimeline(workflowId, executionId, timelineId);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
         'stop_execution',
         'Stop a running or pending workflow execution. Only works on executions with status "running" or "pending".',
         {
@@ -94,13 +133,11 @@ Use this to inspect what a workflow produced, debug failures, or check intermedi
             executionId: z.string().describe('The execution ID containing the failed step'),
             timelineId: z.string().optional().describe('Specific timeline ID to retry. If omitted, the most recent failed timeline is auto-detected.'),
             forceWithoutCache: z.boolean().optional().describe('Bypass cache when retrying the step'),
-            rerunMode: z.enum(['single-step', 'from-step', 'selected-steps']).optional().describe('Rerun mode: single-step (retry only this step), from-step (retry from this step onward), selected-steps'),
         },
-        async ({ workflowId, executionId, timelineId, forceWithoutCache, rerunMode }) => {
+        async ({ workflowId, executionId, timelineId, forceWithoutCache }) => {
             const result = await client.retryExecution(workflowId, executionId, {
                 timelineId,
                 forceWithoutCache,
-                rerunMode,
             });
             return {
                 content: [{

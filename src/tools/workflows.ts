@@ -4,9 +4,9 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { AgentledClient } from '../client.js';
+import type { ClientFactory } from '../server.js';
 
-export function registerWorkflowTools(server: McpServer, client: AgentledClient) {
+export function registerWorkflowTools(server: McpServer, clientFactory: ClientFactory) {
 
     server.tool(
         'list_workflows',
@@ -15,7 +15,8 @@ export function registerWorkflowTools(server: McpServer, client: AgentledClient)
             status: z.string().optional().describe('Filter by status: draft, active, paused'),
             limit: z.number().optional().describe('Max results (default 50, max 200)'),
         },
-        async ({ status, limit }) => {
+        async ({ status, limit }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.listWorkflows({ status, limit });
             return {
                 content: [{
@@ -33,7 +34,8 @@ Also returns hasDraftSnapshot (boolean) and draftSnapshot summary if a draft exi
         {
             workflowId: z.string().describe('The workflow ID'),
         },
-        async ({ workflowId }) => {
+        async ({ workflowId }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.getWorkflow(workflowId);
             return {
                 content: [{
@@ -58,7 +60,8 @@ Also returns hasDraftSnapshot (boolean) and draftSnapshot summary if a draft exi
             pipeline: z.record(z.string(), z.any()).describe('The pipeline definition object'),
             locale: z.string().optional().describe('Locale (default: en)'),
         },
-        async ({ pipeline, locale }) => {
+        async ({ pipeline, locale }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.createWorkflow(pipeline, locale);
             return {
                 content: [{
@@ -83,7 +86,8 @@ automatic pre-edit snapshot for rollback.`,
             updates: z.record(z.string(), z.any()).describe('Partial pipeline updates (name, steps, context, etc.)'),
             locale: z.string().optional().describe('Locale (default: en)'),
         },
-        async ({ workflowId, updates, locale }) => {
+        async ({ workflowId, updates, locale }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.updateWorkflow(workflowId, updates, locale);
             return {
                 content: [{
@@ -100,7 +104,8 @@ automatic pre-edit snapshot for rollback.`,
         {
             workflowId: z.string().describe('The workflow ID to delete'),
         },
-        async ({ workflowId }) => {
+        async ({ workflowId }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.deleteWorkflow(workflowId);
             return {
                 content: [{
@@ -131,7 +136,8 @@ Returns: { valid: boolean, errors: [...], warnings: [...], stepCount: number }`,
             workflowId: z.string().describe('The workflow ID to validate'),
             pipeline: z.record(z.string(), z.any()).optional().describe('Optional draft pipeline to validate before saving (merged with stored pipeline)'),
         },
-        async ({ workflowId, pipeline }) => {
+        async ({ workflowId, pipeline }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.validateWorkflow(workflowId, pipeline);
             return {
                 content: [{
@@ -150,7 +156,8 @@ Returns snapshot ID, timestamp, and which fields were changed.`,
         {
             workflowId: z.string().describe('The workflow ID'),
         },
-        async ({ workflowId }) => {
+        async ({ workflowId }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.listSnapshots(workflowId);
             return {
                 content: [{
@@ -170,8 +177,51 @@ style to the state captured in the snapshot.`,
             workflowId: z.string().describe('The workflow ID'),
             snapshotId: z.string().describe('The snapshot ID to restore (from list_snapshots)'),
         },
-        async ({ workflowId, snapshotId }) => {
+        async ({ workflowId, snapshotId }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.restoreSnapshot(workflowId, snapshotId);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
+        'create_snapshot',
+        `Create a manual config snapshot of a workflow's current state. Use this to save a
+checkpoint before making changes, so you can restore later if needed.
+Enforces plan-based limits (Pro=2, Teams=10, Custom=50). Returns an error with limit
+info if the snapshot limit is reached — delete old snapshots first to free up space.`,
+        {
+            workflowId: z.string().describe('The workflow ID to snapshot'),
+            label: z.string().optional().describe('Optional label to identify the snapshot (e.g. "before refactor")'),
+        },
+        async ({ workflowId, label }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.createSnapshot(workflowId, label);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
+        'delete_snapshot',
+        `Delete a specific config snapshot. Use list_snapshots to find snapshot IDs.
+Useful for freeing up space when the snapshot limit is reached.`,
+        {
+            workflowId: z.string().describe('The workflow ID'),
+            snapshotId: z.string().describe('The snapshot ID to delete (from list_snapshots)'),
+        },
+        async ({ workflowId, snapshotId }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.deleteSnapshot(workflowId, snapshotId);
             return {
                 content: [{
                     type: 'text' as const,
@@ -189,7 +239,8 @@ state. Returns hasDraft: true/false and the draft config if it exists.`,
         {
             workflowId: z.string().describe('The workflow ID'),
         },
-        async ({ workflowId }) => {
+        async ({ workflowId }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.getDraft(workflowId);
             return {
                 content: [{
@@ -208,7 +259,8 @@ automatically so the previous live config can be restored if needed.`,
         {
             workflowId: z.string().describe('The workflow ID'),
         },
-        async ({ workflowId }) => {
+        async ({ workflowId }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.promoteDraft(workflowId);
             return {
                 content: [{
@@ -226,7 +278,8 @@ unchanged. Use this to abandon draft changes and go back to the current live ver
         {
             workflowId: z.string().describe('The workflow ID'),
         },
-        async ({ workflowId }) => {
+        async ({ workflowId }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.discardDraft(workflowId);
             return {
                 content: [{
@@ -246,7 +299,8 @@ Use "live" to publish a draft workflow so it can be executed.`,
             workflowId: z.string().describe('The workflow ID'),
             status: z.enum(['live', 'paused', 'archived']).describe('Target status'),
         },
-        async ({ workflowId, status }) => {
+        async ({ workflowId, status }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.publishWorkflow(workflowId, status);
             return {
                 content: [{
@@ -267,7 +321,8 @@ Use this together with import_workflow to move workflows between environments (e
         {
             workflowId: z.string().describe('The workflow ID to export'),
         },
-        async ({ workflowId }) => {
+        async ({ workflowId }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.exportWorkflow(workflowId);
             return {
                 content: [{
@@ -290,7 +345,8 @@ Tip: register separate MCP servers for sandbox and prod, export from one, import
             exportJson: z.record(z.string(), z.any()).describe('The WorkflowExport object (output from export_workflow)'),
             locale: z.string().optional().describe('Locale for the imported workflow (default: en)'),
         },
-        async ({ exportJson, locale }) => {
+        async ({ exportJson, locale }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.importWorkflow(exportJson, locale);
             return {
                 content: [{
@@ -321,7 +377,8 @@ This is a read-only preview and does not create any workflow.`,
                 pathname: z.string().optional(),
             }).optional().describe('Optional workflow metadata overrides for preview contract'),
         },
-        async ({ n8nJson, options, workflow }) => {
+        async ({ n8nJson, options, workflow }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.previewN8nImport(n8nJson, options, workflow);
             return {
                 content: [{
@@ -352,7 +409,8 @@ Behavior:
             options: z.record(z.string(), z.any()).optional().describe('Optional import options'),
             locale: z.string().optional().describe('Locale for workflow creation (default en)'),
         },
-        async ({ n8nJson, workflow, options, locale }) => {
+        async ({ n8nJson, workflow, options, locale }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.importN8nWorkflow(n8nJson, workflow, options, locale);
             return {
                 content: [{

@@ -4,9 +4,9 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { AgentledClient } from '../client.js';
+import type { ClientFactory } from '../server.js';
 
-export function registerExecutionTools(server: McpServer, client: AgentledClient) {
+export function registerExecutionTools(server: McpServer, clientFactory: ClientFactory) {
 
     server.tool(
         'start_workflow',
@@ -17,7 +17,8 @@ For example, if the workflow expects "company_url", pass: { input: { company_url
             input: z.record(z.string(), z.any()).optional().describe('Input payload matching the workflow input page fields'),
             metadata: z.record(z.string(), z.any()).optional().describe('Optional execution metadata'),
         },
-        async ({ workflowId, input, metadata }) => {
+        async ({ workflowId, input, metadata }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.startWorkflow(workflowId, input, metadata);
             return {
                 content: [{
@@ -36,9 +37,11 @@ For example, if the workflow expects "company_url", pass: { input: { company_url
             status: z.string().optional().describe('Filter: running, completed, failed'),
             limit: z.number().optional().describe('Max results (default 50, max 500)'),
             direction: z.enum(['asc', 'desc']).optional().describe('Sort order (default: desc)'),
+            nextToken: z.string().optional().describe('Pagination cursor from a previous response. Pass this to fetch the next page of results.'),
         },
-        async ({ workflowId, status, limit, direction }) => {
-            const result = await client.listExecutions(workflowId, { status, limit, direction });
+        async ({ workflowId, status, limit, direction, nextToken }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.listExecutions(workflowId, { status, limit, direction, nextToken });
             return {
                 content: [{
                     type: 'text' as const,
@@ -57,7 +60,8 @@ Use this to inspect what a workflow produced, debug failures, or check intermedi
             workflowId: z.string().describe('The workflow ID'),
             executionId: z.string().describe('The execution ID'),
         },
-        async ({ workflowId, executionId }) => {
+        async ({ workflowId, executionId }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.getExecution(workflowId, executionId);
             return {
                 content: [{
@@ -76,9 +80,11 @@ Use this to inspect what a workflow produced, debug failures, or check intermedi
             executionId: z.string().describe('The execution ID'),
             limit: z.number().optional().describe('Max results (default 50, max 500)'),
             direction: z.enum(['asc', 'desc']).optional().describe('Sort order by creation time (default: desc)'),
+            nextToken: z.string().optional().describe('Pagination cursor from a previous response. Pass this to fetch the next page of results.'),
         },
-        async ({ workflowId, executionId, limit, direction }) => {
-            const result = await client.listTimelines(workflowId, executionId, { limit, direction });
+        async ({ workflowId, executionId, limit, direction, nextToken }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.listTimelines(workflowId, executionId, { limit, direction, nextToken });
             return {
                 content: [{
                     type: 'text' as const,
@@ -96,7 +102,8 @@ Use this to inspect what a workflow produced, debug failures, or check intermedi
             executionId: z.string().describe('The execution ID'),
             timelineId: z.string().describe('The timeline ID'),
         },
-        async ({ workflowId, executionId, timelineId }) => {
+        async ({ workflowId, executionId, timelineId }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.getTimeline(workflowId, executionId, timelineId);
             return {
                 content: [{
@@ -114,7 +121,8 @@ Use this to inspect what a workflow produced, debug failures, or check intermedi
             workflowId: z.string().describe('The workflow ID'),
             executionId: z.string().describe('The execution ID to stop'),
         },
-        async ({ workflowId, executionId }) => {
+        async ({ workflowId, executionId }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.stopExecution(workflowId, executionId);
             return {
                 content: [{
@@ -134,7 +142,8 @@ Use this to inspect what a workflow produced, debug failures, or check intermedi
             timelineId: z.string().optional().describe('Specific timeline ID to retry. If omitted, the most recent failed timeline is auto-detected.'),
             forceWithoutCache: z.boolean().optional().describe('Bypass cache when retrying the step'),
         },
-        async ({ workflowId, executionId, timelineId, forceWithoutCache }) => {
+        async ({ workflowId, executionId, timelineId, forceWithoutCache }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.retryExecution(workflowId, executionId, {
                 timelineId,
                 forceWithoutCache,

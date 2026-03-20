@@ -3,9 +3,9 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { AgentledClient } from '../client.js';
+import type { ClientFactory } from '../server.js';
 
-export function registerWorkflowResources(server: McpServer, client: AgentledClient) {
+export function registerWorkflowResources(server: McpServer, clientFactory: ClientFactory) {
     server.resource(
         'workflow-catalog',
         'agentled://workflows',
@@ -14,6 +14,7 @@ export function registerWorkflowResources(server: McpServer, client: AgentledCli
             mimeType: 'application/json',
         },
         async () => {
+            const client = clientFactory({});
             const result = await client.listWorkflows({ limit: 100 });
             return {
                 contents: [{

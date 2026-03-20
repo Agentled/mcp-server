@@ -4,15 +4,23 @@
  * Reads AGENTLED_API_KEY and AGENTLED_URL from environment variables.
  */
 
+export interface AgentledClientOptions {
+    apiKey?: string;
+    bearerToken?: string;
+    baseUrl?: string;
+}
+
 export class AgentledClient {
     private baseUrl: string;
     private apiKey: string;
+    private bearerToken: string;
 
-    constructor() {
-        this.apiKey = process.env.AGENTLED_API_KEY || '';
-        this.baseUrl = (process.env.AGENTLED_URL || 'http://localhost:3000').replace(/\/$/, '');
+    constructor(options?: AgentledClientOptions) {
+        this.apiKey = options?.apiKey || process.env.AGENTLED_API_KEY || '';
+        this.bearerToken = options?.bearerToken || '';
+        this.baseUrl = (options?.baseUrl || process.env.AGENTLED_URL || 'http://localhost:3000').replace(/\/$/, '');
 
-        if (!this.apiKey) {
+        if (!this.apiKey && !this.bearerToken) {
             throw new Error(
                 'AGENTLED_API_KEY is not set. Generate one in Workspace Settings > Developer.'
             );
@@ -22,16 +30,45 @@ export class AgentledClient {
     private async request(path: string, options: RequestInit = {}): Promise<any> {
         const url = `${this.baseUrl}/api/external${path}`;
 
-        const response = await fetch(url, {
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': this.apiKey,
-                ...options.headers,
-            },
-        });
+        const authHeaders: Record<string, string> = this.bearerToken
+            ? { 'Authorization': `Bearer ${this.bearerToken}` }
+            : { 'x-api-key': this.apiKey };
 
-        const data = await response.json();
+        let response: globalThis.Response;
+        try {
+            response = await fetch(url, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders,
+                    ...options.headers,
+                },
+            });
+        } catch (error: any) {
+            if (error?.name === 'AbortError') {
+                throw new Error(`Request to ${path} timed out`);
+            }
+            throw new Error(`Network error calling ${path}: ${error?.message || 'connection failed'}`);
+        }
+
+        const text = await response.text();
+
+        if (!text.trim()) {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText} (empty response body)`);
+            }
+            throw new Error(`Empty response from ${path} (HTTP ${response.status})`);
+        }
+
+        let data: any;
+        try {
+            data = JSON.parse(text);
+        } catch {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
+            }
+            throw new Error(`Invalid JSON response from ${path}: ${text.substring(0, 200)}`);
+        }
 
         if (!response.ok) {
             throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
@@ -93,6 +130,20 @@ export class AgentledClient {
     async restoreSnapshot(workflowId: string, snapshotId: string) {
         return this.request(`/workflows/${workflowId}/snapshots`, {
             method: 'POST',
+            body: JSON.stringify({ snapshotId }),
+        });
+    }
+
+    async createSnapshot(workflowId: string, label?: string) {
+        return this.request(`/workflows/${workflowId}/snapshots`, {
+            method: 'PUT',
+            body: JSON.stringify({ label }),
+        });
+    }
+
+    async deleteSnapshot(workflowId: string, snapshotId: string) {
+        return this.request(`/workflows/${workflowId}/snapshots`, {
+            method: 'DELETE',
             body: JSON.stringify({ snapshotId }),
         });
     }
@@ -236,6 +287,19 @@ export class AgentledClient {
         return this.request('/workspace');
     }
 
+    // --- Branding (Whitelabel) ---
+
+    async getBranding() {
+        return this.request('/workspace/branding');
+    }
+
+    async updateBranding(branding: Record<string, any>) {
+        return this.request('/workspace/branding', {
+            method: 'PATCH',
+            body: JSON.stringify({ branding }),
+        });
+    }
+
     // --- Knowledge ---
 
     async listKnowledgeLists() {
@@ -275,10 +339,19 @@ export class AgentledClient {
     // --- Chat ---
 
     async chat(message: string, sessionId?: string) {
-        return this.request('/chat', {
-            method: 'POST',
-            body: JSON.stringify({ message, sessionId }),
-        });
+        // Chat requests can take several minutes for complex workflows.
+        // Use a 5-minute timeout to match the server's maxDuration.
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+        try {
+            return await this.request('/chat', {
+                method: 'POST',
+                body: JSON.stringify({ message, sessionId }),
+                signal: controller.signal,
+            });
+        } finally {
+            clearTimeout(timeout);
+        }
     }
 
     // --- n8n Import ---

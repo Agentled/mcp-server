@@ -131,9 +131,9 @@ market position, team, and funding, then generates a structured investment memo"
 | Tool | Description |
 |------|-------------|
 | `start_workflow` | Start a workflow execution with input |
-| `list_executions` | List executions for a workflow |
+| `list_executions` | List executions for a workflow (paginated via `nextToken`) |
 | `get_execution` | Get execution details with step results |
-| `list_timelines` | List step execution records (timelines) for an execution |
+| `list_timelines` | List step execution records (timelines) for an execution (paginated via `nextToken`) |
 | `get_timeline` | Get a single timeline by ID with full step output |
 | `stop_execution` | Stop a running execution |
 | `retry_execution` | Retry a failed execution |
@@ -158,6 +158,13 @@ market position, team, and funding, then generates a structured investment memo"
 | `query_kg_edges` | Query knowledge graph edges |
 | `get_scoring_history` | Get scoring history for an entity |
 
+### Branding (Whitelabel)
+
+| Tool | Description |
+|------|-------------|
+| `get_branding` | Get the workspace's whitelabel branding config (displayName, logo, colors, favicon, badge) |
+| `update_branding` | Update branding — set displayName, logoUrl, tagline, primaryColor, primaryColorDark, faviconUrl, hideBadge |
+
 ### Conversational Agent
 
 | Tool | Description |
@@ -175,7 +182,13 @@ Import existing n8n workflows and make them AI-native:
 
 ## For Agencies: White-Label Ready
 
-Build workflows once, deploy to multiple clients under your own brand. Custom domain, your logo and colors, client workspace separation, billing management.
+Build workflows once, deploy to multiple clients under your own brand. Configure branding directly from the MCP server:
+
+```
+"Set my workspace branding: displayName 'Acme AI', primaryColor '#6366f1', tagline 'Powered by Acme'"
+```
+
+Use `get_branding` and `update_branding` to manage displayName, logo, colors, favicon, tagline, and badge visibility. Client portal appearance updates instantly.
 
 ## Works With
 

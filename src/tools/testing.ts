@@ -4,9 +4,9 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { AgentledClient } from '../client.js';
+import type { ClientFactory } from '../server.js';
 
-export function registerTestingTools(server: McpServer, client: AgentledClient) {
+export function registerTestingTools(server: McpServer, clientFactory: ClientFactory) {
 
     server.tool(
         'test_app_action',
@@ -20,7 +20,8 @@ Example: test_app_action("web-scraping", "scrape", { url: "https://example.com" 
             input: z.record(z.string(), z.any()).optional().describe('Input data for the action (e.g., { url: "https://example.com" })'),
             bypassCache: z.boolean().optional().describe('Skip cache and run against the live API (default: false)'),
         },
-        async ({ appId, actionId, input, bypassCache }) => {
+        async ({ appId, actionId, input, bypassCache }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.testAppAction(appId, actionId, input, bypassCache);
             return {
                 content: [{
@@ -44,7 +45,8 @@ Example: test_ai_action("Analyze this company: {{company}}", { company: "Stripe"
             responseType: z.enum(['json', 'text']).optional().describe('Response format: "json" (default) or "text"'),
             systemPrompt: z.string().optional().describe('Optional system instructions for the AI'),
         },
-        async ({ template, variables, responseStructure, responseType, systemPrompt }) => {
+        async ({ template, variables, responseStructure, responseType, systemPrompt }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.testAiAction(template, variables, responseStructure, {
                 responseType,
                 systemPrompt,

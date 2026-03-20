@@ -3,9 +3,9 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { AgentledClient } from '../client.js';
+import type { ClientFactory } from '../server.js';
 
-export function registerAppResources(server: McpServer, client: AgentledClient) {
+export function registerAppResources(server: McpServer, clientFactory: ClientFactory) {
     server.resource(
         'app-catalog',
         'agentled://apps',
@@ -14,6 +14,7 @@ export function registerAppResources(server: McpServer, client: AgentledClient) 
             mimeType: 'application/json',
         },
         async () => {
+            const client = clientFactory({});
             const result = await client.listApps();
             return {
                 contents: [{

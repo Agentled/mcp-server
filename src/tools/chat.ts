@@ -8,9 +8,9 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { AgentledClient } from '../client.js';
+import type { ClientFactory } from '../server.js';
 
-export function registerChatTools(server: McpServer, client: AgentledClient) {
+export function registerChatTools(server: McpServer, clientFactory: ClientFactory) {
 
     server.tool(
         'chat',
@@ -31,14 +31,36 @@ Example: chat("Build me a workflow that takes a LinkedIn company URL, enriches t
             message: z.string().describe('The message to send to the AI agent'),
             session_id: z.string().optional().describe('Session ID for multi-turn conversations. Use the session_id from a previous response to continue the same conversation.'),
         },
-        async ({ message, session_id }) => {
-            const result = await client.chat(message, session_id);
-            return {
-                content: [{
-                    type: 'text' as const,
-                    text: result.response || JSON.stringify(result, null, 2),
-                }],
-            };
+        async ({ message, session_id }, extra) => {
+            const client = clientFactory(extra);
+            try {
+                const result = await client.chat(message, session_id);
+
+                if (result.error) {
+                    return {
+                        content: [{
+                            type: 'text' as const,
+                            text: `Chat error: ${result.error}`,
+                        }],
+                        isError: true,
+                    };
+                }
+
+                return {
+                    content: [{
+                        type: 'text' as const,
+                        text: result.response || JSON.stringify(result, null, 2),
+                    }],
+                };
+            } catch (error: any) {
+                return {
+                    content: [{
+                        type: 'text' as const,
+                        text: `Chat request failed: ${error?.message || 'Unknown error'}`,
+                    }],
+                    isError: true,
+                };
+            }
         }
     );
 }

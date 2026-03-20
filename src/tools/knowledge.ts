@@ -4,9 +4,9 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { AgentledClient } from '../client.js';
+import type { ClientFactory } from '../server.js';
 
-export function registerKnowledgeTools(server: McpServer, client: AgentledClient) {
+export function registerKnowledgeTools(server: McpServer, clientFactory: ClientFactory) {
 
     // --- Workspace Context ---
 
@@ -16,7 +16,8 @@ export function registerKnowledgeTools(server: McpServer, client: AgentledClient
 Returns company details (name, industry, size, offerings) and a summary of all knowledge lists with their field definitions and row counts.
 Use this as a first call to understand what data the workspace has.`,
         {},
-        async () => {
+        async (_args, extra) => {
+            const client = clientFactory(extra);
             const result = await client.getWorkspace();
             return {
                 content: [{
@@ -35,7 +36,8 @@ Use this as a first call to understand what data the workspace has.`,
 Returns detailed information about each list including fields, source type, category, entity config, and KG sync status.
 Use this to discover what lists exist and understand their structure before querying rows.`,
         {},
-        async () => {
+        async (_args, extra) => {
+            const client = clientFactory(extra);
             const result = await client.listKnowledgeLists();
             return {
                 content: [{
@@ -54,7 +56,8 @@ Returns rows with their full rowData, plus count and totalCount for the list.`,
             listKey: z.string().describe('The list key to fetch rows from (e.g., "investors", "deals")'),
             limit: z.number().min(1).max(50).optional().describe('Number of rows to return (default 5, max 50)'),
         },
-        async ({ listKey, limit }) => {
+        async ({ listKey, limit }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.getKnowledgeRows(listKey, limit);
             return {
                 content: [{
@@ -71,7 +74,8 @@ Returns rows with their full rowData, plus count and totalCount for the list.`,
         {
             key: z.string().describe('The key of the text entry to fetch'),
         },
-        async ({ key }) => {
+        async ({ key }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.getKnowledgeText(key);
             return {
                 content: [{
@@ -95,7 +99,8 @@ Gracefully returns empty results if the Knowledge Graph is not configured.`,
             relationshipType: z.string().optional().describe('Filter edges by relationship type (e.g., "INVESTED_IN", "SCORED")'),
             limit: z.number().min(1).max(500).optional().describe('Max edges to return (default 100, max 500)'),
         },
-        async ({ entityName, relationshipType, limit }) => {
+        async ({ entityName, relationshipType, limit }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.queryKgEdges(entityName, relationshipType, limit);
             return {
                 content: [{
@@ -116,7 +121,8 @@ Returns both structured records and a compact text format for prompt injection.`
             entityName: z.string().optional().describe('Filter scoring history by entity name'),
             limit: z.number().min(1).max(500).optional().describe('Max records to return (default 100, max 500)'),
         },
-        async ({ entityName, limit }) => {
+        async ({ entityName, limit }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.getScoringHistory(entityName, limit);
             return {
                 content: [{

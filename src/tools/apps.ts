@@ -4,9 +4,9 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { AgentledClient } from '../client.js';
+import type { ClientFactory } from '../server.js';
 
-export function registerAppTools(server: McpServer, client: AgentledClient) {
+export function registerAppTools(server: McpServer, clientFactory: ClientFactory) {
 
     server.tool(
         'list_apps',
@@ -14,7 +14,8 @@ export function registerAppTools(server: McpServer, client: AgentledClient) {
 Use this to discover what integrations are available before building a workflow.
 Common apps: agentled (LinkedIn enrichment, email finder), hunter (email), web-scraping, affinity-crm, specter, http-request.`,
         {},
-        async () => {
+        async (_args, extra) => {
+            const client = clientFactory(extra);
             const result = await client.listApps();
             return {
                 content: [{
@@ -32,7 +33,8 @@ Use this to understand exactly what inputs an action needs when building workflo
         {
             appId: z.string().describe('The app ID (e.g., "agentled", "hunter", "web-scraping", "affinity-crm")'),
         },
-        async ({ appId }) => {
+        async ({ appId }, extra) => {
+            const client = clientFactory(extra);
             const result = await client.getAppActions(appId);
             return {
                 content: [{

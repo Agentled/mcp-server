@@ -71,7 +71,10 @@ export class AgentledClient {
         }
 
         if (!response.ok) {
-            throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+            const msg = data.detail
+                ? `${data.error}: ${data.detail}`
+                : (data.error || `HTTP ${response.status}: ${response.statusText}`);
+            throw new Error(msg);
         }
 
         return data;

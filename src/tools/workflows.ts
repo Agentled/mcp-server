@@ -99,6 +99,34 @@ automatic pre-edit snapshot for rollback.`,
     );
 
     server.tool(
+        'update_step',
+        `Update a single step in a workflow by step ID. Only the specified fields are merged —
+all other steps and fields remain unchanged. This is SAFER than update_workflow with steps
+because it cannot accidentally replace or delete other steps.
+
+Use this instead of update_workflow when you only need to change one step (e.g., update a prompt,
+change inputs, modify entry conditions). Deep-merges nested objects like pipelineStepPrompt,
+stepInputData, and entryConditions.
+
+For live workflows, changes are routed to a draft snapshot (same behavior as update_workflow).`,
+        {
+            workflowId: z.string().describe('The workflow ID'),
+            stepId: z.string().describe('The step ID to update (e.g., "analyze", "scrape-company")'),
+            updates: z.record(z.string(), z.any()).describe('Partial step updates to merge. Examples: { name: "New Name" }, { pipelineStepPrompt: { template: "..." } }, { stepInputData: { url: "{{input.url}}" } }'),
+        },
+        async ({ workflowId, stepId, updates }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.updateStep(workflowId, stepId, updates);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
         'delete_workflow',
         'Permanently delete a workflow by ID. This cannot be undone.',
         {
@@ -412,6 +440,24 @@ Behavior:
         async ({ n8nJson, workflow, options, locale }, extra) => {
             const client = clientFactory(extra);
             const result = await client.importN8nWorkflow(n8nJson, workflow, options, locale);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
+        'get_step_schema',
+        `Get the full schema of allowed fields on workflow steps (PipelineStep type).
+Returns field names, types, descriptions, grouped by category. Use this to understand what fields you can set on a step.
+Unknown fields are automatically stripped on save — only fields listed here are persisted.`,
+        {},
+        async (_args, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.getStepSchema();
             return {
                 content: [{
                     type: 'text' as const,

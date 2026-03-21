@@ -112,6 +112,13 @@ export class AgentledClient {
         return this.request(`/workflows/${id}`, { method: 'DELETE' });
     }
 
+    async updateStep(workflowId: string, stepId: string, updates: Record<string, any>) {
+        return this.request(`/workflows/${workflowId}/steps/${stepId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ updates }),
+        });
+    }
+
     async validateWorkflow(id: string, pipeline?: Record<string, any>) {
         return this.request(`/workflows/${id}/validate`, {
             method: 'POST',
@@ -232,6 +239,12 @@ export class AgentledClient {
                 forceWithoutCache: options?.forceWithoutCache,
             }),
         });
+    }
+
+    // --- Step Schema ---
+
+    async getStepSchema() {
+        return this.request('/workflows/step-schema');
     }
 
     // --- Apps ---

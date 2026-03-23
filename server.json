@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.agentled/mcp-server",
-  "description": "MCP server for AgentLed — AI workflow orchestration with 100+ integrations, knowledge graph, and unified credits. Build, manage, and execute workflows from Claude Code, Cursor, or any MCP client.",
+  "name": "io.github.Agentled/mcp-server",
+  "description": "AI workflow orchestration with 100+ integrations, knowledge graph, and unified credits.",
   "repository": {
     "url": "https://github.com/Agentled/mcp-server",
     "source": "github"
   },
-  "version": "0.5.1",
+  "version": "0.5.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@agentled/mcp-server",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "transport": {
         "type": "stdio"
       },

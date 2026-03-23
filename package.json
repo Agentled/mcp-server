@@ -1,6 +1,7 @@
 {
   "name": "@agentled/mcp-server",
   "version": "0.5.1",
+  "mcpName": "io.github.agentled/mcp-server",
   "description": "MCP server for AgentLed — intelligent AI workflow orchestration with long-term memory, 100+ integrations, unified credits.",
   "type": "module",
   "main": "dist/index.js",

@@ -59,6 +59,13 @@ export function createServer(): McpServer {
     const server = new McpServer({
         name: 'agentled',
         version: '0.3.0',
+        icons: [
+            {
+                src: 'https://www.agentled.app/images/logos/icon-180.png',
+                mimeType: 'image/png',
+                sizes: ['180x180'],
+            },
+        ],
     });
 
     const clientFactory = createClientFactory();

@@ -1,6 +1,6 @@
 {
   "name": "@agentled/mcp-server",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "MCP server for AgentLed — intelligent AI workflow orchestration with long-term memory, 100+ integrations, unified credits.",
   "type": "module",
   "main": "dist/index.js",
@@ -12,6 +12,8 @@
   },
   "files": [
     "dist/",
+    "skills/",
+    "setup-skills.mjs",
     "README.md",
     "LICENSE"
   ],
@@ -20,6 +22,8 @@
     "dev": "tsc --watch",
     "start": "node dist/index.js",
     "start:http": "node dist/http.js",
+    "setup-skills": "node setup-skills.mjs --setup-skills",
+    "setup-skills:global": "node setup-skills.mjs --setup-skills --global",
     "prepublishOnly": "tsc"
   },
   "dependencies": {

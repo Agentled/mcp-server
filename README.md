@@ -5,6 +5,8 @@
 [![npm version](https://img.shields.io/npm/v/@agentled/mcp-server.svg)](https://www.npmjs.com/package/@agentled/mcp-server)
 [![license](https://img.shields.io/npm/l/@agentled/mcp-server.svg)](https://github.com/Agentled/mcp-server/blob/main/LICENSE)
 
+[![Agentled Server MCP server](https://glama.ai/mcp/servers/Agentled/mcp-server/badges/card.svg)](https://glama.ai/mcp/servers/Agentled/mcp-server)
+
 ## What is Agentled?
 
 [Agentled](https://www.agentled.app) is an AI-native workflow automation platform with persistent business memory. 100+ integrations (30 native + Composio), a Knowledge Graph that learns across executions, and a unified credit system replacing 100+ separate API accounts. This MCP server lets you create, manage, and execute workflows from Claude, Codex, Cursor, Windsurf, or any MCP-compatible client.

@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.Agentled/mcp-server",
+  "name": "io.github.agentled/mcp-server",
   "description": "AI workflow orchestration with 100+ integrations, knowledge graph, and unified credits.",
   "repository": {
     "url": "https://github.com/Agentled/mcp-server",
@@ -22,13 +22,6 @@
           "isRequired": true,
           "format": "string",
           "isSecret": true
-        },
-        {
-          "name": "AGENTLED_URL",
-          "description": "AgentLed instance URL (default: https://www.agentled.app)",
-          "isRequired": false,
-          "format": "string",
-          "isSecret": false
         }
       ]
     }

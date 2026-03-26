@@ -1,6 +1,6 @@
 # @agentled/mcp-server
 
-> Intelligent AI workflow orchestration with long-term memory, 100+ integrations, unified credits — from Claude, Codex, or any MCP client.
+> The automation engine built for AI agents. Like giving your AI assistant n8n + a knowledge graph + 100 API keys. Persistent memory across runs, compound intelligence, unified credits.
 
 [![npm version](https://img.shields.io/npm/v/@agentled/mcp-server.svg)](https://www.npmjs.com/package/@agentled/mcp-server)
 [![license](https://img.shields.io/npm/l/@agentled/mcp-server.svg)](https://github.com/Agentled/mcp-server/blob/main/LICENSE)
@@ -9,7 +9,53 @@
 
 ## What is Agentled?
 
-[Agentled](https://www.agentled.app) is an AI-native workflow automation platform with persistent business memory. 100+ integrations (30 native + Composio), a Knowledge Graph that learns across executions, and a unified credit system replacing 100+ separate API accounts. This MCP server lets you create, manage, and execute workflows from Claude, Codex, Cursor, Windsurf, or any MCP-compatible client.
+[Agentled](https://www.agentled.app) is the automation engine built for AI agents. Like handing your AI assistant n8n + a knowledge graph + 100 API keys — it builds, runs, and learns from workflows autonomously. 100+ integrations (30 native + Composio), a Knowledge Graph that compounds intelligence across executions, and a unified credit system replacing 100+ separate API accounts. This MCP server gives Claude, Codex, Cursor, Windsurf, or any MCP client full access to create, manage, and execute workflows.
+
+## See it in action
+
+```
+$ agentled create "Outbound to fintech CTOs in Europe"
+
+Loading workspace context from Knowledge Graph...
+✦ ICP loaded  ✦ 3 prior campaigns  ✦ 847 contacts in KG
+
+Creating campaign with 3 workflows...
+
+━━ Workflow 1: Prospect Research  linkedin · hunter · clearbit
+  ✓ LinkedIn: CTO + fintech + EU → 189 profiles
+  ✓ Enriched via Hunter + Clearbit → 156 matched
+  ✓ ICP scoring → 43 high-intent leads
+
+━━ Workflow 2: Signal Detection  web-scraper · crunchbase
+  ✓ Job postings → 12 hiring devops
+  ✓ Crunchbase → 8 recently funded
+  ✓ Cross-match: hiring + funded → 5 hot leads
+
+━━ Workflow 3: Outreach  email · linkedin · kg
+  ✓ Personalized emails from context
+  ✓ LinkedIn requests with custom notes
+  ✓ 43 leads saved to Knowledge Graph
+
+Campaign saved. Scheduled: every 48h
+Credits used: 720
+→ agentled.app/your-team/fintech-cto-outbound
+```
+
+One prompt. Three workflows. LinkedIn enrichment, email finding, AI scoring, multi-channel outreach — all orchestrated, all stored in the Knowledge Graph for the next run.
+
+## Quick Start
+
+```bash
+claude mcp add agentled \
+  -e AGENTLED_API_KEY=wsk_... \
+  -- npx -y @agentled/mcp-server
+```
+
+### Getting your API key
+
+1. Sign up at [agentled.app](https://www.agentled.app)
+2. Open **Workspace Settings > Developer**
+3. Generate a new API key (starts with `wsk_`)
 
 ## Why Agentled MCP?
 
@@ -29,70 +75,51 @@ No need to sign up for LinkedIn APIs, email services, web scrapers, video genera
 | Knowledge Graph storage | 1-2 | Custom infrastructure |
 | CRM sync (Affinity, HubSpot) | 5-10 | CRM API + middleware |
 
+### Workflows That Learn
+
+Other automation tools start from zero every run. Agentled's Knowledge Graph remembers across executions — what worked, what didn't, what humans corrected. Every run compounds on the last.
+
+```
+Run 1:  Investor scoring → 62% accuracy (cold start)
+Run 5:  → 78% (learning from IC feedback)
+Run 12: → 89% (compound learning from outcomes, zero manual tuning)
+```
+
 ### Intelligent Orchestration
 
 Unlike trigger-action tools, Agentled workflows have AI reasoning at every step. Multi-model support (Claude, GPT-4, Gemini, Mistral, DeepSeek, Moonshot), adaptive execution, and human-in-the-loop approval gates when needed.
-
-### Long-Term Memory via Knowledge Graph
-
-Every workflow execution builds your business knowledge base. Query past insights in future workflows. Feedback loops that improve matching, scoring, and decisions over time.
-
-```
-Workflow 1: Research 100 companies → Store insights in KG
-Workflow 2: "Find companies similar to our best customers" → KG already knows
-Workflow 3: Score new leads → Uses feedback from all previous workflows
-```
-
-## Quick Start
-
-```bash
-claude mcp add agentled \
-  -e AGENTLED_API_KEY=wsk_... \
-  -e AGENTLED_URL=https://www.agentled.app \
-  -- npx -y @agentled/mcp-server
-```
-
-### Getting your API key
-
-1. Sign up at [agentled.app](https://www.agentled.app)
-2. Open **Workspace Settings > Developer**
-3. Generate a new API key (starts with `wsk_`)
-
-### Environment variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `AGENTLED_API_KEY` | Yes | Workspace API key (`wsk_...`) |
-| `AGENTLED_URL` | No | API base URL (default: `https://www.agentled.app`) |
 
 ## What Can You Build?
 
 ### Lead Enrichment & Sales Automation
 
-Find prospects on LinkedIn, enrich data, score by ICP fit, personalized outreach at scale, CRM sync with scoring history. *The entire sales dev workflow in one prompt.*
-
 ```
-"Create a workflow that takes a LinkedIn company URL, enriches the company data,
-finds decision-maker emails, scores them by ICP fit, and saves results to a knowledge list"
+"Find fintech CTOs in Europe, enrich via LinkedIn + Hunter, score by ICP fit,
+draft personalized outreach, save everything to the Knowledge Graph"
 ```
 
 ### Content & Media Production
 
-Generate videos, images, voiceovers, AI-written articles and social posts, multi-channel publishing. *From idea to published across all channels in one workflow.*
-
 ```
-"Build a workflow that scrapes a competitor's blog, generates a better article
-with AI, creates a thumbnail image, and drafts posts for LinkedIn and Twitter"
+"Scrape trending topics in our niche, generate 5 LinkedIn posts with AI,
+create thumbnail images, schedule publishing for the week"
 ```
 
 ### Company Research & Intelligence
 
-Website analysis, competitor research, investment memo generation, market analysis with AI reasoning. Results stored in KG for future queries. *Your AI research team that remembers everything.*
+```
+"Research this company from its URL — team, funding, market position, competitors.
+Generate an investment memo. Store in KG for future reference."
+```
+
+### VC Investor Matching (real case study)
 
 ```
-"Create a workflow that researches a company from its URL, analyzes their
-market position, team, and funding, then generates a structured investment memo"
+"Match this startup against our 2,000+ investor database. Score by sector focus,
+stage preference, check size, and portfolio synergy. Compare with last round's outcomes."
 ```
+
+3,000+ profiles processed. IC-ready reports. Prediction vs outcome learning — accuracy went from 62% to 89% over 12 runs with zero manual tuning.
 
 ## Built-in Capabilities
 
@@ -112,6 +139,9 @@ market position, team, and funding, then generates a structured investment memo"
 | `get_workflow` | Get full workflow definition by ID |
 | `create_workflow` | Create a new workflow from pipeline JSON |
 | `update_workflow` | Update an existing workflow |
+| `add_step` | Add a step with automatic positioning and next-pointer rewiring |
+| `update_step` | Deep-merge updates into a single step by ID |
+| `remove_step` | Remove a step with automatic next-pointer rewiring |
 | `delete_workflow` | Permanently delete a workflow |
 | `validate_workflow` | Validate pipeline structure, returns errors per step |
 | `publish_workflow` | Change workflow status (draft, live, paused, archived) |
@@ -125,6 +155,8 @@ market position, team, and funding, then generates a structured investment memo"
 | `get_draft` | Get the current draft version of a workflow |
 | `promote_draft` | Promote a draft to the live version |
 | `discard_draft` | Discard the current draft |
+| `create_snapshot` | Create a manual config snapshot |
+| `delete_snapshot` | Delete a specific config snapshot |
 | `list_snapshots` | List version snapshots for a workflow |
 | `restore_snapshot` | Restore a workflow to a previous snapshot |
 
@@ -138,7 +170,7 @@ market position, team, and funding, then generates a structured investment memo"
 | `list_timelines` | List step execution records (timelines) for an execution (paginated via `nextToken`) |
 | `get_timeline` | Get a single timeline by ID with full step output |
 | `stop_execution` | Stop a running execution |
-| `retry_execution` | Retry a failed execution |
+| `retry_execution` | Retry a failed step — auto-detects the most recent failure if no timeline ID provided |
 
 ### Apps & Testing
 
@@ -148,6 +180,8 @@ market position, team, and funding, then generates a structured investment memo"
 | `get_app_actions` | Get action schemas for an app |
 | `test_app_action` | Test an app action without creating a workflow |
 | `test_ai_action` | Test an AI prompt without creating a workflow |
+| `test_code_action` | Test JavaScript code in the same sandboxed VM as production |
+| `get_step_schema` | Get allowed PipelineStep fields grouped by category |
 
 ### Knowledge & Data
 
@@ -172,6 +206,12 @@ market position, team, and funding, then generates a structured investment memo"
 | Tool | Description |
 |------|-------------|
 | `chat` | Send a message to the AgentLed AI agent. Build workflows through natural language — no JSON required. Supports multi-turn conversations via session_id. |
+
+### Intent Router
+
+| Tool | Description |
+|------|-------------|
+| `do` | Natural language intent router — describe what you want and it auto-selects and executes the right tool |
 
 ### Coming from n8n?
 

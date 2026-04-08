@@ -20,6 +20,17 @@ Follow this pattern when creating workflows:
 6. Test: `start_workflow` with sample input
 7. Check results: `get_execution` to see step outputs
 
+## Workspace Awareness
+
+Be explicit about which Agentled workspace you are operating on.
+
+- When multiple Agentled MCP servers are registered, use the server-specific namespace directly instead of assuming a default.
+- When using the standalone CLI, remember it can store multiple saved workspace profiles.
+- Check the active CLI workspace with `agentled auth current`.
+- Switch the saved CLI target with `agentled auth use <workspace>`.
+- Override a single CLI command with `agentled --workspace <workspace> ...` or `AGENTLED_WORKSPACE=<workspace> ...`.
+- Before making destructive or customer-visible changes, confirm the target workspace via `get_workspace` or `agentled auth current`.
+
 ## Pipeline Structure
 
 Every workflow needs at minimum: a trigger step, one or more action steps, and a milestone (terminal) step. Steps are connected via `next: { stepId: "..." }`.
@@ -76,6 +87,40 @@ Every workflow needs at minimum: a trigger step, one or more action steps, and a
 }
 ```
 
+### AI Step Model & Provider Configuration
+
+AI steps can optionally specify a model and provider via the `agent` field:
+
+```json
+{
+  "id": "analyze",
+  "type": "aiAction",
+  "agent": { "model": "claude-4-6-sonnet", "provider": "anthropic" },
+  "pipelineStepPrompt": { "template": "...", "responseStructure": {} },
+  "creditCost": 10,
+  "next": { "stepId": "next-step" }
+}
+```
+
+**Supported Providers:** `openai`, `anthropic`, `google`, `mistral`, `deepseek`, `kimi`, `minimax`, `bytedance`, `perplexity`, `xai`
+
+**Supported Models by Provider:**
+
+| Provider | Models |
+|----------|--------|
+| `openai` | `gpt-5-nano`, `gpt-5-mini`, `gpt-5.4`, `o4-mini`, `o3`, `o3-pro`, `o3-deep-research` |
+| `anthropic` | `claude-4-6-sonnet`, `claude-4-5-haiku`, `claude-4-6-opus` |
+| `google` | `gemini-3-pro`, `gemini-3-flash`, `gemini-2.5-pro`, `gemini-2.5-flash` |
+| `mistral` | `mistral-large-latest`, `mistral-small-latest`, `codestral-latest` |
+| `deepseek` | `deepseek-chat`, `deepseek-reasoner` |
+| `kimi` | `kimi-k2.5` |
+| `minimax` | `minimax-m2.5` |
+| `bytedance` | `doubao-seed-1.6-flash`, `seed-2.0-mini`, `doubao-seed-1.8-beta` |
+| `perplexity` | `sonar-pro`, `sonar`, `sonar-reasoning-pro`, `sonar-reasoning` |
+| `xai` | `grok-4-0709`, `grok-3`, `grok-3-mini` |
+
+> **Tip:** Use `list_models` to get the full up-to-date list of supported model IDs. Use the internal model IDs (e.g., `claude-4-6-sonnet`), NOT the raw API model IDs (e.g., `claude-sonnet-4-6`). Using unsupported model IDs will result in a validation error.
+
 ### Code Step
 ```json
 {
@@ -127,6 +172,87 @@ Operators: `==`, `!=`, `>`, `<`, `isNull`, `isNotNull`, `contains`.
 
 **Important**: Use `criteria` (not `conditions`) and `variable` (not `field`).
 
+## Email Step Pattern (AI Draft → Approve → Send)
+
+Email steps use a single `aiAction` step (never separate "draft" + "gmail send" appAction steps). The AI drafts the email, a human approves, then the platform sends it.
+
+### 1. Outreach Profile Input Page
+
+When a workflow sends emails, add an outreach profile input page to `context.inputPages` so the user can configure sender identity:
+
+```json
+{
+  "title": "Outreach Profile",
+  "pathname": "outreach-profile",
+  "configuration": {
+    "contextKey": "outreachProfile",
+    "shortDescriptionFields": ["name", "fromEmail"],
+    "fields": [
+      { "name": "name", "label": "Sender Name", "type": "text", "required": true },
+      { "name": "fromEmailLabel", "label": "From Name", "type": "text", "required": true },
+      { "name": "fromEmail", "label": "From Email", "type": "connected_emails_selector_multiple", "required": true },
+      { "name": "replyToEmail", "label": "Reply-To Email (optional)", "type": "text" }
+    ]
+  }
+}
+```
+
+### 2. Composed Email Step
+
+```json
+{
+  "id": "send_email",
+  "type": "aiAction",
+  "name": "Send Email",
+  "pipelineStepPrompt": {
+    "type": "email",
+    "template": "Draft a personalized email...\n{{steps.previous_step.data}}\nReturn JSON ONLY per schema.",
+    "responseStructure": {
+      "email": {
+        "from": "{{context.outreachProfile.fromEmail}}",
+        "to": "recipient@example.com",
+        "subject": "Email subject line",
+        "body": "Email body (email-safe HTML)",
+        "bodyType": "html"
+      }
+    },
+    "responseType": "json"
+  },
+  "renderer": {
+    "type": "Email",
+    "config": { "fromContextKey": "outreachProfile" }
+  },
+  "onApproval": {
+    "action": "schedule-email",
+    "executedText": "Email sent by {{name}} at {{date}}",
+    "scheduledText": "Email scheduled to be sent for {{date}} by {{name}}",
+    "failedText": "Email failed to send."
+  },
+  "integrations": [{
+    "type": "oneOf",
+    "label": "Email",
+    "connectorType": "email",
+    "options": [
+      { "name": "Gmail", "url": "https://gmail.com", "isUserAccountConnectionRequired": true },
+      { "name": "Outlook", "url": "https://outlook.com", "isUserAccountConnectionRequired": true }
+    ],
+    "selectionHint": "preferConnected"
+  }],
+  "creditCost": 10,
+  "next": { "conditions": { "approvalRequired": true } }
+}
+```
+
+### Key Requirements
+
+- **Always** include `outreachProfile` input page when using email
+- `pipelineStepPrompt.type: "email"` — tells the system this is an email step
+- `renderer.config.fromContextKey: "outreachProfile"` — links renderer to sender profile
+- `onApproval.action: "schedule-email"` — triggers the actual send; without it, approval does nothing
+- `next.conditions.approvalRequired: true` — blocks the pipeline until human approval
+- Email body must be email-safe HTML (`<p>`, `<br>`, `<a>`, `<strong>` — no CSS, no scripts)
+- **Never** use separate "draft" + "gmail send" appAction steps for outreach
+
 ## Top Apps Quick Reference
 
 | App | Action | Credits | Key Inputs |
@@ -141,7 +267,7 @@ Operators: `==`, `!=`, `>`, `<`, `isNull`, `isNotNull`, `contains`.
 | `browser-use` | `run-task` | 15 | `task`, `startUrl` |
 | `agentled` | `call-workflow` | varies | `workflowId`, `input` |
 
-Use `list_apps` and `get_app_actions` for full schemas of all available apps.
+Use `list_apps` and `get_app_actions` for full schemas of all available apps. Use `list_models` for supported AI model IDs.
 
 ## Credit-Efficient Testing
 
@@ -160,6 +286,110 @@ Each execution costs real credits. Follow these rules:
 | `"missing prompt template"` | Add `pipelineStepPrompt.template` to AI steps |
 | `"Unknown action"` | Verify `actionId` format via `get_app_actions` |
 | `"is unreachable"` | Connect every step via `next.stepId` from the trigger chain |
+| `"unsupported model"` | Use a valid internal model ID (e.g., `claude-4-6-sonnet`, not `claude-sonnet-4-6`). Run `list_models` for all valid IDs. |
+
+## Persistent Memory
+
+Workflows can store and recall memories that persist across executions. Two mechanisms:
+
+### MCP Tools (for managing memory externally)
+
+| Tool | Purpose | Key Params |
+|------|---------|------------|
+| `recall_memory` | Get a specific memory by key | `key`, `scope?`, `workflowId?` |
+| `search_memories` | Search by natural language query | `query?`, `category?`, `scope?`, `workflowId?`, `limit?` |
+| `store_memory` | Save a persistent memory | `key`, `value`, `category?`, `scope?`, `workflowId?`, `confidence?`, `merge?` |
+| `list_memories` | List all memories in a scope | `scope?`, `workflowId?`, `category?`, `limit?` |
+| `delete_memory` | Delete a memory by key | `key`, `scope?`, `workflowId?` |
+
+**Scopes**: `workspace` (shared across all workflows) or `workflow` (scoped to one workflow, default).
+
+**Categories**: `fact` (known truth), `insight` (pattern/learning), `preference` (user preference), `outcome` (result to track).
+
+**Merge strategies** (for `store_memory`): `overwrite` (default), `append`, `max`, `min`, `increment`.
+
+**Confidence**: 0-100. Memories with confidence >= 70 are automatically synced to the Knowledge Graph.
+
+### Pipeline Step Configuration (for memory inside workflows)
+
+#### Auto-extraction (pipeline-level)
+
+Enable on the pipeline to automatically extract memories after each execution completes:
+
+```json
+{
+  "persistentMemoryConfig": {
+    "autoExtract": true,
+    "scopes": ["pipeline"],
+    "categories": ["fact", "insight", "outcome"],
+    "maxPerExtraction": 10,
+    "extractionModelTier": "mini"
+  }
+}
+```
+
+#### Explicit per-step writes
+
+Configure specific steps to write memories from their output:
+
+```json
+{
+  "id": "score-company",
+  "type": "aiAction",
+  "persistentMemory": {
+    "writes": [
+      {
+        "key": "score_{{input.company_name}}",
+        "valuePath": "total_score",
+        "category": "outcome",
+        "scope": "pipeline",
+        "confidence": 85
+      }
+    ]
+  }
+}
+```
+
+The `valuePath` extracts from the step's output using dot notation. The `key` supports template variables.
+
+#### Builtin tool for AI steps (`workspace_memory`)
+
+AI steps with type `aiActionWithTools` can use the `workspace_memory` builtin tool to read/write memory during execution:
+
+```json
+{
+  "id": "analyze",
+  "type": "aiActionWithTools",
+  "name": "Analyze with Memory",
+  "tools": [{ "builtinType": "workspace_memory" }],
+  "pipelineStepPrompt": {
+    "template": "Recall what we know about this company, then analyze...",
+    "responseStructure": { "analysis": "string" }
+  },
+  "creditCost": 10,
+  "next": { "stepId": "done" }
+}
+```
+
+The AI agent can then call `recall`, `search`, or `store` actions within the tool during execution. This is the same pattern used by KG tools (`kg_search`, `kg_traverse`, etc.).
+
+### Memory Patterns
+
+**1. Learning workflow** — accumulates knowledge over repeated runs:
+```
+trigger → enrich → AI analyze (with workspace_memory tool) → milestone
+```
+The AI step recalls prior scores, compares trends, and stores updated insights.
+
+**2. Explicit score tracking** — saves structured data for cross-run comparison:
+```
+trigger → score company → [persistentMemory.writes: score_{{company}}] → milestone
+```
+
+**3. Workspace-wide preferences** — store ICP criteria, outreach templates, or scoring weights shared across workflows:
+```
+store_memory(key: "target_icp", value: { industry: "SaaS", minEmployees: 50 }, scope: "workspace", category: "preference")
+```
 
 ## Conversational Building
 

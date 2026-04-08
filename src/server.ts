@@ -14,6 +14,11 @@ import { registerTestingTools } from './tools/testing.js';
 import { registerKnowledgeTools } from './tools/knowledge.js';
 import { registerChatTools } from './tools/chat.js';
 import { registerBrandingTools } from './tools/branding.js';
+import { registerIntentTools } from './tools/intent.js';
+import { registerModelTools } from './tools/models.js';
+import { registerAgentTools } from './tools/agents.js';
+import { registerFeedbackTools } from './tools/feedback.js';
+import { registerMemoryTools } from './tools/memory.js';
 import { registerAppResources } from './resources/apps.js';
 import { registerWorkflowResources } from './resources/workflows.js';
 
@@ -58,7 +63,7 @@ function createClientFactory(): ClientFactory {
 export function createServer(): McpServer {
     const server = new McpServer({
         name: 'agentled',
-        version: '0.3.0',
+        version: '0.6.0',
         icons: [
             {
                 src: 'https://www.agentled.app/images/logos/icon-180.png',
@@ -78,6 +83,11 @@ export function createServer(): McpServer {
     registerKnowledgeTools(server, clientFactory);
     registerChatTools(server, clientFactory);
     registerBrandingTools(server, clientFactory);
+    registerIntentTools(server, clientFactory);
+    registerModelTools(server, clientFactory);
+    registerAgentTools(server, clientFactory);
+    registerFeedbackTools(server, clientFactory);
+    registerMemoryTools(server, clientFactory);
 
     // Register resources
     registerAppResources(server, clientFactory);

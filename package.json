@@ -1,15 +1,16 @@
 {
   "name": "@agentled/mcp-server",
-  "version": "0.5.2",
+  "version": "0.7.0",
   "mcpName": "io.github.Agentled/mcp-server",
-  "description": "MCP server for AgentLed — intelligent AI workflow orchestration with long-term memory, 100+ integrations, unified credits.",
+  "description": "MCP server for Agentled — intelligent AI workflow orchestration with long-term memory, 100+ integrations, and unified credits.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "mcp-server": "dist/index.js",
+    "agentled": "dist/cli/index.js",
     "agentled-mcp-server": "dist/index.js",
-    "agentled-mcp-server-http": "dist/http.js"
+    "agentled-mcp-server-http": "dist/http.js",
+    "mcp-server": "dist/index.js"
   },
   "files": [
     "dist/",
@@ -19,21 +20,24 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && npm --prefix ../packages/core run build && tsc && node -e \"const fs=require('fs'); ['dist/index.js','dist/http.js','dist/cli/index.js','dist/cli/create.js'].forEach((file)=>{ if (fs.existsSync(file)) fs.chmodSync(file, 0o755); });\"",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
     "start:http": "node dist/http.js",
     "setup-skills": "node setup-skills.mjs --setup-skills",
     "setup-skills:global": "node setup-skills.mjs --setup-skills --global",
-    "prepublishOnly": "tsc"
+    "test": "npx tsx --test src/cli/__tests__/*.test.ts",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "@agentled/core": "^0.2.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "jose": "^6.2.2",
     "zod": "^3.25.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^22.0.0",
     "typescript": "^5.5.0"
   },
   "engines": {

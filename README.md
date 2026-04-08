@@ -1,6 +1,6 @@
 # @agentled/mcp-server
 
-> The automation engine built for AI agents. Like giving your AI assistant n8n + a knowledge graph + 100 API keys. Persistent memory across runs, compound intelligence, unified credits.
+> The automation engine built for AI agents. Intelligent AI workflow orchestration with long-term memory, 100+ integrations, and unified credits.
 
 [![npm version](https://img.shields.io/npm/v/@agentled/mcp-server.svg)](https://www.npmjs.com/package/@agentled/mcp-server)
 [![license](https://img.shields.io/npm/l/@agentled/mcp-server.svg)](https://github.com/Agentled/mcp-server/blob/main/LICENSE)
@@ -9,7 +9,23 @@
 
 ## What is Agentled?
 
-[Agentled](https://www.agentled.app) is the automation engine built for AI agents. Like handing your AI assistant n8n + a knowledge graph + 100 API keys — it builds, runs, and learns from workflows autonomously. 100+ integrations (30 native + Composio), a Knowledge Graph that compounds intelligence across executions, and a unified credit system replacing 100+ separate API accounts. This MCP server gives Claude, Codex, Cursor, Windsurf, or any MCP client full access to create, manage, and execute workflows.
+[Agentled](https://www.agentled.app) is the automation engine built for AI agents.
+It gives Claude, Codex, Cursor, Windsurf, and any MCP-compatible client direct access
+to intelligent workflow orchestration, long-term memory, and 100+ integrations.
+
+**Three things make it different:**
+
+🧠 **Long-Term Memory** — A built-in Knowledge Graph stores insights across
+workflow executions. Your agents get smarter over time — they remember past
+research, lead scores, content performance, and business context.
+
+⚡ **Unified Credits** — One API key, one credit system, 100+ services.
+No need to sign up for LinkedIn, email, scraping, AI models, or video
+generation separately. Connect once, use everything.
+
+🎯 **Intelligent Orchestration** — AI reasons at every step. Workflows
+aren't just "if this then that" — they understand context, make decisions,
+and adapt to results.
 
 ## See it in action
 
@@ -38,7 +54,7 @@ Creating campaign with 3 workflows...
 
 Campaign saved. Scheduled: every 48h
 Credits used: 720
-→ agentled.app/your-team/fintech-cto-outbound
+→ https://www.agentled.app/your-team/fintech-cto-outbound
 ```
 
 One prompt. Three workflows. LinkedIn enrichment, email finding, AI scoring, multi-channel outreach — all orchestrated, all stored in the Knowledge Graph for the next run.
@@ -49,6 +65,21 @@ One prompt. Three workflows. LinkedIn enrichment, email finding, AI scoring, mul
 claude mcp add agentled \
   -e AGENTLED_API_KEY=wsk_... \
   -- npx -y @agentled/mcp-server
+```
+
+### Local development
+
+Use the local built entrypoint when you want to test unpublished changes against a
+local app. `npx -y @agentled/mcp-server` always uses the latest published npm package.
+
+```bash
+cd agentled-mcp-server
+npm run build
+
+claude mcp add --transport stdio agentled_local \
+  --env AGENTLED_API_KEY=wsk_... \
+  --env AGENTLED_URL=http://localhost:8080 \
+  -- node /absolute/path/to/agentsled-front/agentled-mcp-server/dist/index.js
 ```
 
 ### Getting your API key
@@ -164,7 +195,7 @@ stage preference, check size, and portfolio synergy. Compare with last round's o
 
 | Tool | Description |
 |------|-------------|
-| `start_workflow` | Start a workflow execution with input |
+| `start_workflow` | Start a workflow execution with input. Pass `useMocks: false` to force a real (credit-consuming) run that ignores per-step mock data; defaults to honoring the workflow's configured mocks. |
 | `list_executions` | List executions for a workflow (paginated via `nextToken`) |
 | `get_execution` | Get execution details with step results |
 | `list_timelines` | List step execution records (timelines) for an execution (paginated via `nextToken`) |
@@ -188,9 +219,19 @@ stage preference, check size, and portfolio synergy. Compare with last round's o
 | Tool | Description |
 |------|-------------|
 | `get_workspace` | Get workspace info and settings |
+| `get_workspace_company_profile` | Get the editable workspace company profile and offerings |
+| `update_workspace_company_profile` | Update top-level company profile fields like name, URLs, logo, industry, size, and additional information |
+| `upsert_workspace_company_offerings` | Create new offerings or update existing offerings in the workspace company profile |
 | `list_knowledge_lists` | List knowledge lists in the workspace |
 | `get_knowledge_rows` | Get rows from a knowledge list |
 | `get_knowledge_text` | Get text content from a knowledge entry |
+| `create_knowledge_list` | Create a new knowledge list with a typed schema (idempotent on key collision) |
+| `update_knowledge_list_schema` | Add or remove fields on an existing list schema |
+| `delete_knowledge_list` | Permanently delete a list and all its rows |
+| `upsert_knowledge_rows` | Insert or update rows in a list (max 500/call, per-row error reporting) |
+| `delete_knowledge_rows` | Delete rows by ID |
+| `upsert_knowledge_text` | Create or update a text knowledge entry |
+| `delete_knowledge_text` | Delete a text knowledge entry by key |
 | `query_kg_edges` | Query knowledge graph edges |
 | `get_scoring_history` | Get scoring history for an entity |
 
@@ -231,6 +272,102 @@ Build workflows once, deploy to multiple clients under your own brand. Configure
 ```
 
 Use `get_branding` and `update_branding` to manage displayName, logo, colors, favicon, tagline, and badge visibility. Client portal appearance updates instantly.
+
+## Persistent Memory — Examples
+
+Memories let workflows learn across executions. Store what worked, recall it next time.
+
+### Store a fact after enrichment
+
+```
+"Store a memory: key 'icp_criteria', value { industry: 'fintech', minEmployees: 50, region: 'EU' },
+category 'preference', scope 'workspace'"
+```
+
+### Recall before scoring
+
+```
+"Recall memory 'icp_criteria' at workspace scope — use it to score this batch of leads"
+```
+
+### Search for past outcomes
+
+```
+"Search memories for 'conversion rate' in the 'outcome' category"
+```
+
+### Track a running metric
+
+```
+"Store memory: key 'total_leads_processed', value 43, merge 'increment', scope 'workspace'"
+```
+
+Each subsequent call with `merge: 'increment'` adds to the existing value — no read-modify-write needed.
+
+## Proactive Agents — Examples
+
+Proactive agents are background monitors that autonomously trigger workflows when conditions are met.
+
+### Create an agent that watches for new leads
+
+```
+"Create a proactive agent named 'New Lead Watcher' that checks the 'incoming-leads' knowledge list
+every 5 minutes. When new rows appear, start the 'lead-enrichment' workflow with the new rows as input.
+Limit to 10 actions per day."
+```
+
+Config structure:
+
+```json
+{
+  "monitorInterval": "5m",
+  "evaluation": { "mode": "rules" },
+  "monitors": [{
+    "type": "kg_list",
+    "listKey": "incoming-leads",
+    "condition": "new_rows"
+  }],
+  "actions": [{
+    "type": "start_workflow",
+    "workflowId": "wf_abc123",
+    "inputMapping": { "leads": "{{monitor.newRows}}" }
+  }],
+  "maxActionsPerDay": 10,
+  "cooldownMs": 300000
+}
+```
+
+### Create an AI-evaluated agent
+
+```
+"Create a proactive agent that checks execution history every hour.
+Use AI evaluation to decide if the failure rate is abnormal, then notify me via email."
+```
+
+```json
+{
+  "monitorInterval": "1h",
+  "evaluation": { "mode": "ai", "modelTier": "mini", "maxCreditsPerDay": 50 },
+  "monitors": [{
+    "type": "execution_history",
+    "condition": "consecutive_failures",
+    "threshold": 3
+  }],
+  "actions": [{
+    "type": "notify",
+    "channel": "email",
+    "message": "{{monitor.summary}}"
+  }],
+  "maxActionsPerDay": 5
+}
+```
+
+### Pause and resume
+
+```
+"Pause proactive agent pa_xyz789"
+"Resume proactive agent pa_xyz789"
+```
 
 ## Works With
 

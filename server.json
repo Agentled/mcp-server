@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.agentled/mcp-server",
-  "description": "AI workflow orchestration with 100+ integrations, knowledge graph, and unified credits.",
+  "description": "Intelligent AI workflow orchestration with long-term memory, 100+ integrations, and unified credits.",
   "repository": {
     "url": "https://github.com/Agentled/mcp-server",
     "source": "github"
   },
-  "version": "0.5.2",
+  "version": "0.7.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@agentled/mcp-server",
-      "version": "0.5.2",
+      "version": "0.7.0",
       "transport": {
         "type": "stdio"
       },

@@ -77,6 +77,15 @@ async function main() {
             return;
         }
 
+        // Glama server metadata (required for Glama connector health check)
+        if (req.url === '/glama.json') {
+            sendJson(res, 200, {
+                $schema: 'https://glama.ai/mcp/schemas/server.json',
+                maintainers: ['ouadie-agentled'],
+            }, { 'Cache-Control': 'public, max-age=3600' });
+            return;
+        }
+
         // Parse workspace prefix from URL: /{workspaceId}/mcp
         const { workspaceId: urlWorkspaceId, path } = parseWorkspacePath(req.url || '/');
         const wsPrefix = urlWorkspaceId ? `/${urlWorkspaceId}` : '';
@@ -101,7 +110,7 @@ async function main() {
                 authorization_endpoint: `${MCP_BASE_URL}${wsPrefix}/authorize`,
                 token_endpoint: `${MCP_BASE_URL}${wsPrefix}/token`,
                 response_types_supported: ['code'],
-                grant_types_supported: ['authorization_code'],
+                grant_types_supported: ['authorization_code', 'refresh_token'],
                 code_challenge_methods_supported: ['S256'],
                 token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic'],
                 scopes_supported: ['mcp:full'],

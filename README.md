@@ -108,7 +108,7 @@ No need to sign up for LinkedIn APIs, email services, web scrapers, video genera
 
 ### Workflows That Learn
 
-Other automation tools start from zero every run. Agentled's Knowledge Graph remembers across executions — what worked, what didn't, what humans corrected. Every run compounds on the last.
+Other automation tools start from zero every run. Agentled's Knowledge Graph remembers across executions — what worked, what didn't, what humans corrected. Scoring workflows can use compact row-level `scoring_profile` summaries and bounded scoring-memory retrieval so every run compounds on the last without dumping raw history into prompts.
 
 ```
 Run 1:  Investor scoring → 62% accuracy (cold start)
@@ -119,6 +119,50 @@ Run 12: → 89% (compound learning from outcomes, zero manual tuning)
 ### Intelligent Orchestration
 
 Unlike trigger-action tools, Agentled workflows have AI reasoning at every step. Multi-model support (Claude, GPT-4, Gemini, Mistral, DeepSeek, Moonshot), adaptive execution, and human-in-the-loop approval gates when needed.
+
+### Agent Teams
+
+Agent Teams let you run multiple AI specialists in a single workflow step. Pick a preset and describe what you need — the team handles coordination, delegation, and synthesis.
+
+```
+"Add an Agent Team step that researches the company and produces an investment memo"
+```
+
+Six built-in presets cover the most common patterns:
+
+| Preset | What it does |
+|--------|-------------|
+| `research-and-summarize` | Specialists gather information, one synthesizes a summary |
+| `analyze-and-recommend` | Multiple analysts evaluate options, produce a ranked recommendation |
+| `generate-then-review` | A generator drafts content, reviewers critique and refine |
+| `compare-options` | Specialists argue for competing options, coordinator arbitrates |
+| `investigate-in-parallel` | Independent specialists explore different angles simultaneously |
+| `review-and-improve` | Reviewers find issues, an editor applies improvements |
+
+When creating Agent Team steps via MCP, include preset metadata so the step opens correctly in the builder:
+
+```json
+{
+  "id": "analyze",
+  "type": "agentOrchestrator",
+  "name": "Agent Team",
+  "orchestratorConfig": {
+    "pattern": "supervisor",
+    "workers": [
+      { "id": "researcher", "name": "Researcher", "systemPrompt": "Research {{input.company_url}} — team, funding, market position" },
+      { "id": "analyst", "name": "Analyst", "systemPrompt": "Analyse the research. Identify risks and growth signals." }
+    ]
+  },
+  "metadata": {
+    "agentTeamPreset": "research-and-summarize",
+    "agentTeamMode": "simple",
+    "agentTeamUxVersion": 1
+  },
+  "next": { "stepId": "milestone" }
+}
+```
+
+Existing steps created with raw `orchestratorConfig` and no metadata continue to work — they open in advanced mode in the builder without errors.
 
 ## What Can You Build?
 
@@ -223,7 +267,8 @@ stage preference, check size, and portfolio synergy. Compare with last round's o
 | `update_workspace_company_profile` | Update top-level company profile fields like name, URLs, logo, industry, size, and additional information |
 | `upsert_workspace_company_offerings` | Create new offerings or update existing offerings in the workspace company profile |
 | `list_knowledge_lists` | List knowledge lists in the workspace |
-| `get_knowledge_rows` | Get rows from a knowledge list |
+| `get_knowledge_rows` | Get rows from a knowledge list (paginated, max 50) |
+| `get_knowledge_rows_by_ids` | Fetch specific rows by ID (max 200) — use after `query_kg_edges` |
 | `get_knowledge_text` | Get text content from a knowledge entry |
 | `create_knowledge_list` | Create a new knowledge list with a typed schema (idempotent on key collision) |
 | `update_knowledge_list_schema` | Add or remove fields on an existing list schema |
@@ -262,6 +307,32 @@ Import existing n8n workflows and make them AI-native:
 |------|-------------|
 | `preview_n8n_import` | Preview an n8n workflow import (dry run) |
 | `import_n8n_workflow` | Import an n8n workflow into Agentled |
+
+## Looking Up Entity-Scoped Data
+
+When you need all records related to a specific entity, use the two-tool chain instead of paginating `get_knowledge_rows`:
+
+**Example 1 — all deals scored by an investor:**
+```
+1.  query_kg_edges({ entityName: "Investor Name", relationshipType: "SCORED" })
+    → returns edges with targetNodeIds
+
+2.  get_knowledge_rows_by_ids({ rowIds: <targetNodeIds from step 1> })
+    → returns full row data for each matched deal
+```
+
+**Example 2 — all leads sourced from a campaign:**
+```
+1.  query_kg_edges({ entityName: "Campaign Name", relationshipType: "SOURCED" })
+    → returns edges with targetNodeIds
+
+2.  get_knowledge_rows_by_ids({ rowIds: <targetNodeIds from step 1> })
+    → returns full contact/lead rows
+```
+
+**Why this matters:** `get_knowledge_rows` is limited to 50 rows per call. At 3k rows that means 60 round trips; at 10k it means 200. The KG-edge path is O(edges for that entity) — independent of total list size — so it stays fast regardless of how large the list grows.
+
+**Node ID convention:** `source_node_id` and `target_node_id` values from `query_kg_edges` are knowledge row IDs. Rows outside the authenticated workspace are silently excluded.
 
 ## For Agencies: White-Label Ready
 

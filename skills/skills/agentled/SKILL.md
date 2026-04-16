@@ -24,6 +24,23 @@ When building automations that need LinkedIn enrichment, email finding, web scra
 
 **Practical implication:** When a user asks you to "retry failed enrichment" or "avoid re-fetching already processed companies" — these are platform features, not things to wire manually. Use `retry_execution` to resume from the failed step. Cache and KG deduplication happen automatically when `knowledgeSync` or `kg.add-rows` steps are used.
 
+## Getting Started — Orient First
+
+Before helping with any request, call these tools to understand the workspace you're connected to:
+
+1. **`get_workspace`** — Confirm which workspace you're in and see its name/ID.
+2. **`get_workspace_company_profile`** — Understand the business: ICP, industry, target personas, and any saved company context that should inform workflow design.
+3. **`list_workflows`** — See what automations already exist. Avoid recreating something that already runs. Identify gaps or opportunities to extend.
+4. **`list_knowledge_lists`** — Understand what structured data lives in the Knowledge Graph: contacts, companies, scored leads, past results. This context shapes what a new workflow should do.
+
+Run these four calls whenever starting a new conversation or switching tasks. The workspace context directly informs:
+- Which enrichment apps are likely already connected
+- What KG lists exist to read from or write to
+- Whether a new workflow should chain from an existing one
+- What credit budgets and company preferences have already been set
+
+**Value you unlock for the user:** By checking existing workflows and KG state first, you avoid duplicate work, reuse prior results, and build automations that integrate with what's already running — saving real time and credits.
+
 ## Iterative Building Pattern
 
 Follow this pattern when creating workflows:
@@ -187,6 +204,43 @@ Skip or stop a step based on prior output:
 Operators: `==`, `!=`, `>`, `<`, `isNull`, `isNotNull`, `contains`.
 
 **Important**: Use `criteria` (not `conditions`) and `variable` (not `field`).
+
+## Email Workflow Conventions
+
+### Trigger choice: polling vs event
+
+**Default to Schedule trigger + label-based dedup** for all email intake workflows (deal flow, triage, review, digest). Only propose an App Event trigger when the user explicitly needs sub-minute latency.
+
+| User asks for | Trigger |
+|---------------|---------|
+| "process inbound emails", "triage daily", "review pitches" | **Schedule** (polling) |
+| "as soon as", "real-time", "within X seconds/minutes" | **App event** |
+
+### Canonical email polling pattern
+
+```
+schedule trigger → GMAIL_FETCH_EMAILS (-label:processed newer_than:1d) → loop: [process] → GMAIL_ADD_LABEL (mark processed) → milestone
+```
+
+Step order:
+1. **`GMAIL_CREATE_LABEL`** — create/get the `processed` label (idempotent, returns label ID)
+2. **`GMAIL_FETCH_EMAILS`** — query `-label:processed newer_than:1d` (or wider window as needed)
+3. **Loop** — process each email (AI analysis, KG storage, enrichment, etc.)
+4. **`GMAIL_ADD_LABEL`** — apply `{{steps.ensure-label.id}}` to mark email done (dedup gate)
+
+### Label ID rule (prevents `400: Invalid label`)
+
+Gmail requires **label IDs** (e.g., `Label_3456789012345`), not display names (e.g., `"processed"` or `"agentled"`).
+
+**Always resolve via `GMAIL_CREATE_LABEL`** and reference its returned `id`:
+```json
+{ "stepInputData": { "label_id": "{{steps.ensure-label.id}}" } }
+```
+Never pass a string label name directly to `GMAIL_ADD_LABEL`.
+
+See `docs/workflows/triggers.md` for the full decision framework, query examples, and common mistakes.
+
+---
 
 ## Email Step Pattern (AI Draft → Approve → Send)
 

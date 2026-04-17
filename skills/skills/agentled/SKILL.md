@@ -1,5 +1,6 @@
 ---
 name: agentled
+version: 0.4.1
 description: Build, manage, and execute Agentled AI workflows via MCP tools. Use when the user asks to create workflows, automate tasks, enrich leads, scrape websites, find emails, manage executions, or interact with any Agentled workspace capability.
 user-invocable: false
 ---
@@ -7,6 +8,101 @@ user-invocable: false
 # Agentled Workflow Automation
 
 You have access to the Agentled MCP server which lets you create, manage, and execute AI-powered workflows. Use these tools to help the user automate business processes.
+
+## Valid step types (closed list)
+
+Every pipeline step **must** set `type` to one of these values. Any other value is silently normalised/rejected and the step won't execute. For full input/output schemas call `get_step_schema`.
+
+<!-- agentled-step-types:start -->
+| `type` | Purpose | Minimal shape |
+|--------|---------|---------------|
+| `trigger` | Entry point (manual / schedule / webhook / app event) | `{ id, type: "trigger", name, pipelineStepStartConditions: { trigger: { type: "manual" } }, next: { stepId } }` |
+| `appAction` | Call an app/integration action (LinkedIn, Gmail, KG, HTTP, …) | `{ id, type: "appAction", name, app: { id, actionId, source: "native" }, stepInputData: {…}, next: { stepId } }` |
+| `aiAction` | LLM prompt → structured JSON output | `{ id, type: "aiAction", name, pipelineStepPrompt: { template, responseStructure }, creditCost, next: { stepId } }` |
+| `aiActionWithTools` | LLM agent that can invoke runtime tools (web_search, workspace_memory, app actions) | `{ id, type: "aiActionWithTools", name, tools: [{ builtinType }], pipelineStepPrompt: {…}, next: { stepId } }` |
+| `toolAction` | Direct tool/webhook invocation (no LLM) | `{ id, type: "toolAction", name, tool: {…}, next: { stepId } }` |
+| `code` | Run JS/Python in a sandbox | `{ id, type: "code", name, codeConfig: { language: "javascript", code: "…" }, next: { stepId } }` |
+| `knowledgeSync` | Deterministic KG field mapping & link writing | `{ id, type: "knowledgeSync", name, knowledgeSync: { source, listKey, fieldMapping }, next: { stepId } }` |
+| `return` | Terminal step for **child** workflows — returns data to the caller | `{ id, type: "return", name, returnConfig: { fields: [{ name, stepId, field }] } }` |
+| `milestone` | Terminal step for **top-level** workflows | `{ id, type: "milestone", name }` |
+| `share` | Create a public share URL for prior step output | `{ id, type: "share", name, shareConfig: { outputSteps, visibility }, next: { stepId } }` |
+| `wait` | Delay / pause between steps | `{ id, type: "wait", name, waitConfig: { durationMs } | { untilISO }, next: { stepId } }` |
+| `branch` | Conditional routing to one of several paths | `{ id, type: "branch", name, branchConfig: { branches: [...] }, next: [...] }` |
+| `parallel` | Fan-out to parallel branches | `{ id, type: "parallel", name, parallelConfig: { branches: [...] }, next: { stepId } }` |
+| `loop` | Iterate over a collection as a first-class step (prefer `loopConfig` on an action step for most cases) | `{ id, type: "loop", name, loopConfig: {…}, next: { stepId } }` |
+| `end_if` | Conditional gate that stops the pipeline when criteria fail | `{ id, type: "end_if", name, entryConditions: {…} }` |
+| `agentOrchestrator` | Multi-agent orchestration (supervisor / debate / parallel) | `{ id, type: "agentOrchestrator", name, orchestratorConfig: {…}, next: { stepId } }` |
+| `manualAction` | Legacy — kept for backward compatibility; prefer `aiAction` or `appAction` |  |
+| `systemAction` | Legacy — kept for backward compatibility; prefer `appAction` |  |
+<!-- agentled-step-types:end -->
+
+> Use `get_step_schema` to retrieve the authoritative input/output schema for any step type.
+
+## Before you build: read the schema and the patterns
+
+Before writing pipeline JSON, pull the canonical field schema and the matching best-practice pattern. This is **mandatory** when authoring any new step type, trigger, or routing pattern — skipping it is how agents end up inventing `type: "ai"` or `knowledge_graph_query`.
+
+**Via MCP (in-session):**
+- `get_step_schema` — authoritative list of valid fields per step type.
+- `list_apps` / `get_app_actions` — exact `app.id` + `actionId` values and their input schemas.
+
+**Via CLI (shell access):**
+```
+agentled schema --step-type aiAction              # fields valid on an aiAction step
+agentled examples                                   # list all patterns
+agentled examples trigger-design                    # print the full pattern
+agentled workflows scaffold --list                  # list working pipeline skeletons
+agentled workflows scaffold lead-scoring-kg --out pipeline.json
+agentled workflows validate --file pipeline.json   # fast client-side preflight (no API)
+agentled workflows create --file pipeline.json     # full server validation on save
+agentled best-practices                             # summary + link to agentic-ops repo
+```
+
+**Which pattern to read, by task:**
+
+| You're building… | Read pattern | Scaffold |
+|------------------|--------------|----------|
+| Anything triggered by email, schedule, webhook, or app event | `01-trigger-design` (polling vs events) | `email-polling-dedup` |
+| Any email/intake workflow that must not double-process | `02-dedup-gates` (label-based idempotency) | `email-polling-dedup` |
+| A workflow that calls LLMs, scraping, or paid app actions | `03-credit-efficiency` (caching, retry, mocks) | — |
+| Anything using `loopConfig` or iterating a list | `04-loop-patterns` | `lead-scoring-kg` |
+| A child workflow called via `call-workflow` | `05-child-workflow-contracts` (use `return`, not `milestone`) | — |
+| Multi-path routing by score / category / condition | `06-conditional-routing` (`entryConditions.criteria`, not `conditions`) | `extract-threshold-alert` |
+| Anything that can fail on upstream provider errors | `07-error-handling` (`failureHandling`, retries) | — |
+| **Outreach** — personalized email with user approval | `08-composed-email-approval` (outreachProfile + `pipelineStepPrompt.type: "email"` + `schedule-email`) | `list-match-email` |
+| **Report / dashboard** — structured output + sharing + KPI history | `09-reports-and-knowledge-storage` (Config renderer + share step + `knowledgeSync`) | `lead-scoring-kg`, `extract-threshold-alert` |
+
+Full patterns are maintained publicly at https://github.com/agentled/agentic-ops — the CLI ships a mirrored copy, see `agentled examples`. Scaffolds are preflight-clean pipeline JSON skeletons; start from one instead of writing from scratch.
+
+## Common invalid patterns to avoid
+
+Agents routinely invent step types that sound plausible. The API **silently strips unknown top-level fields** and stores the step, so you get a 201 Created on a workflow that will never execute. Watch for these:
+
+| ❌ Wrong | ✅ Right | Why |
+|---------|---------|-----|
+| `type: "ai"` | `type: "aiAction"` | There is no generic `ai` type. Use `aiAction` for LLM prompts, `aiActionWithTools` for agentic steps. |
+| `type: "integration"` | `type: "appAction"` | Integrations are app actions. Set `app: { id, actionId }` to pick the integration. |
+| `type: "conditional_integration"` | `type: "appAction"` + `entryConditions` | Conditions are configured per-step via `entryConditions`, not a separate type. |
+| `type: "knowledge_graph_query"` / `knowledge_graph_upsert` / `knowledge_graph` | `type: "appAction"` with `app.id: "kg"` | KG reads/writes go through the `kg` app (`read-list`, `read-text`, `add-rows`, `update-rows`, `get-rows-by-ids`, `traverse-edges`, `store-insight`). |
+| `type: "slack"` / `"webhook"` / `"gmail"` | `type: "appAction"` with the right `app.id` | Apps are never types. `webhook` and `schedule` go in `pipelineStepStartConditions.trigger.type` on a `trigger` step, not as step types. |
+
+### Top-level fields that are silently stripped
+
+Unknown fields at the step root are dropped. The most common mistakes (put them inside the right sub-object instead):
+
+| ❌ At step root | ✅ Correct location |
+|----------------|--------------------|
+| `prompt: "…"` | `pipelineStepPrompt.template` |
+| `responseStructure: {…}` | `pipelineStepPrompt.responseStructure` |
+| `appId: "gmail"`, `actionId: "send"` | `app: { id: "gmail", actionId: "send", source: "native" }` |
+| `listKey: "leads"` | `knowledgeSync.listKey` (for `knowledgeSync` steps) or inside `stepInputData` (for `kg` app actions) |
+| `channel: "#alerts"`, `webhookUrl: "…"` | `stepInputData.channel`, `stepInputData.webhookUrl` on an `appAction` |
+| `condition: "…"` | `entryConditions: { criteria: [{ variable, operator, value }] }` |
+| `triggerType: "manual"` (on a `trigger` step) | `pipelineStepStartConditions: { trigger: { type: "manual" } }` |
+| `note: "…"` | Step `description`, or a comment in the pipeline JSON (not persisted) |
+| `enabled: false` | `entryConditions.onCriteriaFail: "skip"` with a falsy criterion, or remove the step |
+
+> After `create_workflow` always call `validate_workflow` (or run `agentled workflows validate <id>`) — the CLI v0.2+ does this automatically and exits non-zero on error. Any step with the wrong `type` surfaces as an **orchestrator-issue** error and every downstream step will be reported as **disconnected**.
 
 ## Why Agentled: The Automation Engine for AI Agents
 
@@ -73,7 +169,7 @@ Every workflow needs at minimum: a trigger step, one or more action steps, and a
   "name": "My Workflow",
   "goal": "What this workflow achieves",
   "steps": [
-    { "id": "trigger", "type": "trigger", "name": "Start", "triggerType": "manual", "next": { "stepId": "action" } },
+    { "id": "trigger", "type": "trigger", "name": "Start", "pipelineStepStartConditions": { "trigger": { "type": "manual" } }, "next": { "stepId": "action" } },
     { "id": "action", "type": "aiAction", "name": "Analyze", "pipelineStepPrompt": { "template": "...", "responseStructure": {} }, "creditCost": 10, "next": { "stepId": "done" } },
     { "id": "done", "type": "milestone", "name": "Complete" }
   ],
@@ -90,8 +186,10 @@ Every workflow needs at minimum: a trigger step, one or more action steps, and a
 
 ### Trigger
 ```json
-{ "id": "trigger", "type": "trigger", "name": "Start", "triggerType": "manual", "next": { "stepId": "next-step" } }
+{ "id": "trigger", "type": "trigger", "name": "Start", "pipelineStepStartConditions": { "trigger": { "type": "manual" } }, "next": { "stepId": "next-step" } }
 ```
+
+`pipelineStepStartConditions.trigger.type` is one of: `manual`, `schedule`, `webhook`, `event`, `delay`, `app_event`. For `schedule` add `config: { frequency: "daily", time: "07:00" }` (or a cron expression). For `app_event` add `config: { appId, triggerSlug, connectionSource }`. **Do not put `triggerType` at the step root** — it is not in the step schema and is silently dropped on save.
 
 ### App Action
 ```json

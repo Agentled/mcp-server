@@ -1,6 +1,6 @@
 ---
 name: agentled
-version: 0.4.1
+version: 0.5.0
 description: Build, manage, and execute Agentled AI workflows via MCP tools. Use when the user asks to create workflows, automate tasks, enrich leads, scrape websites, find emails, manage executions, or interact with any Agentled workspace capability.
 user-invocable: false
 ---
@@ -49,14 +49,19 @@ Before writing pipeline JSON, pull the canonical field schema and the matching b
 **Via CLI (shell access):**
 ```
 agentled schema --step-type aiAction              # fields valid on an aiAction step
+agentled schema --context                          # valid input-page / context field types (MCP-029)
+agentled tools builtins                            # valid aiActionWithTools builtinType values (MCP-030)
 agentled examples                                   # list all patterns
 agentled examples trigger-design                    # print the full pattern
 agentled workflows scaffold --list                  # list working pipeline skeletons
 agentled workflows scaffold lead-scoring-kg --out pipeline.json
+agentled workflows scaffold ai-with-tools --out pipeline.json   # aiActionWithTools starter
 agentled workflows validate --file pipeline.json   # fast client-side preflight (no API)
 agentled workflows create --file pipeline.json     # full server validation on save
 agentled best-practices                             # summary + link to agentic-ops repo
 ```
+
+> **Silent-strip failures caught by preflight:** invalid `type` on a context / input-page field (e.g. `"multi-select"`, `"checkbox"`, `"number"`) and invalid `builtinType` on an `aiActionWithTools` tool (e.g. `"web-search"`, `"memory"`) both get silently stripped by the runtime — `workflows validate` now flags them with a "did you mean" fix.
 
 **Which pattern to read, by task:**
 

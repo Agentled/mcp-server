@@ -142,15 +142,62 @@ Run these four calls whenever starting a new conversation or switching tasks. Th
 
 **Value you unlock for the user:** By checking existing workflows and KG state first, you avoid duplicate work, reuse prior results, and build automations that integrate with what's already running — saving real time and credits.
 
-## Iterative Building Pattern
+## Incremental Authoring (recommended)
 
-Follow this pattern when creating workflows:
+Build workflows **one step at a time**. This catches errors per-step instead of dumping a full JSON blob and getting 10+ errors at once.
 
-1. Design the pipeline JSON based on requirements
-2. `create_workflow` to save it
-3. `validate_workflow` to check for errors
-4. If errors: fix the pipeline, `update_workflow`, `validate_workflow` again
-5. When valid: `publish_workflow` with status `"live"`
+### Via MCP tools
+
+```
+create_workflow({ name, goal })                          → empty shell, returns workflowId
+add_step({ workflowId, step: { type: "trigger", ... } }) → returns validation per-step
+add_step({ workflowId, step: { type: "aiAction", ... }, insertAfter: "trigger-id" })
+  → validates template variables, model IDs, app action inputs immediately
+... repeat for each step ...
+validate_workflow(workflowId)                            → full graph-level check (reachability, cycles)
+publish_workflow(workflowId, "live")
+```
+
+### Via CLI
+
+```bash
+agentled wf create --pipeline '{"name":"My Workflow","goal":"..."}'  --skip-validate
+  # → returns workflowId (no steps yet)
+
+agentled wf add-step <wfId> --step '{"id":"start","type":"trigger","name":"Start",...}'
+  # → returns per-step validation
+
+agentled wf add-step <wfId> --insert-after start --rewire-next \
+  --step '{"id":"extract","type":"aiAction","name":"Extract",...}'
+  # → bad variable refs, wrong model ID, or unknown app action caught HERE
+
+# ... repeat ...
+
+agentled wf validate <wfId>        # full graph check
+agentled wf publish <wfId> --status live
+```
+
+### Why not bulk JSON?
+
+The full-pipeline `steps` array on `create_workflow` / `update_workflow` is supported for **imports, templates, and export→edit→re-import round-trips**. Agents authoring from scratch should not use it:
+
+- No per-step feedback — a bad `type`, model ID, or variable ref on step 2 cascades into 10+ errors on steps 3-8.
+- No variable discovery — `{{input.X}}` vs `{{steps.trigger-id.X}}` is a common agent mistake that only surfaces after the full blob is submitted.
+- Agents invent step types (`"ai"`, `"integration"`, `"knowledge_graph_query"`) that are silently accepted but never execute.
+
+Internal testing: **0 errors with incremental vs 13 errors with bulk JSON** on the same pipeline.
+
+### Editing existing workflows
+
+For live workflows, prefer per-step tools over bulk updates:
+
+- `update_step(workflowId, stepId, updates)` — change one step (prompt, inputs, next, etc.)
+- `add_step(workflowId, step, insertAfter?)` — insert a new step
+- `remove_step(workflowId, stepId)` — delete a step and re-wire neighbors
+- After edits: `validate_workflow` → `publish_workflow` (or `promote_draft` for live workflows)
+
+### Post-authoring
+
 6. Test: `start_workflow` with sample input
 7. Check results: `get_execution` to see step outputs
 

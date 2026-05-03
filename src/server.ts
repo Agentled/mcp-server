@@ -14,11 +14,14 @@ import { registerTestingTools } from './tools/testing.js';
 import { registerKnowledgeTools } from './tools/knowledge.js';
 import { registerChatTools } from './tools/chat.js';
 import { registerBrandingTools } from './tools/branding.js';
+import { registerChannelTools } from './tools/channels.js';
 import { registerIntentTools } from './tools/intent.js';
 import { registerModelTools } from './tools/models.js';
 import { registerAgentTools } from './tools/agents.js';
+import { registerProactiveAgentTools } from './tools/proactive-agents.js';
 import { registerFeedbackTools } from './tools/feedback.js';
 import { registerMemoryTools } from './tools/memory.js';
+import { registerRoutineTools } from './tools/routines.js';
 import { registerAppResources } from './resources/apps.js';
 import { registerWorkflowResources } from './resources/workflows.js';
 
@@ -83,11 +86,14 @@ export function createServer(): McpServer {
     registerKnowledgeTools(server, clientFactory);
     registerChatTools(server, clientFactory);
     registerBrandingTools(server, clientFactory);
+    registerChannelTools(server, clientFactory);
     registerIntentTools(server, clientFactory);
     registerModelTools(server, clientFactory);
     registerAgentTools(server, clientFactory);
+    registerProactiveAgentTools(server, clientFactory);
     registerFeedbackTools(server, clientFactory);
     registerMemoryTools(server, clientFactory);
+    registerRoutineTools(server, clientFactory);
 
     // Register resources
     registerAppResources(server, clientFactory);

@@ -1,6 +1,6 @@
 ---
 name: agentled
-version: 0.5.0
+version: 0.6.0
 description: Build, manage, and execute Agentled AI workflows via MCP tools. Use when the user asks to create workflows, automate tasks, enrich leads, scrape websites, find emails, manage executions, or interact with any Agentled workspace capability.
 user-invocable: false
 ---
@@ -8,6 +8,39 @@ user-invocable: false
 # Agentled Workflow Automation
 
 You have access to the Agentled MCP server which lets you create, manage, and execute AI-powered workflows. Use these tools to help the user automate business processes.
+
+## Goal and bottleneck first
+
+Before designing any workflow, determine what the user is actually trying to achieve and where the real bottleneck is. Agents that skip this step build the wrong system.
+
+**Two common failure modes:**
+- Building a full operating system when the user needed one workflow (wrong scope).
+- Optimizing for theme curation or content quality when the bottleneck is paid conversion or reply handling (wrong objective).
+
+**The design loop:**
+1. Orient — inspect the workspace (identity, company profile, KG lists, connected apps, existing workflows, existing agents).
+2. Infer — determine the likely goal and bottleneck from workspace context.
+3. Ask — if the business direction is genuinely ambiguous, ask a few targeted questions.
+4. Brief — produce a short build brief (goal, assumptions, assets to reuse, KG lists, workflow group, risks, cost hotspots, build order).
+5. Build — create workflows incrementally from the brief.
+
+> For multi-workflow systems, produce a group manifest before touching live workflow state. See `docs/GROUP_MANIFEST.md`.
+
+## What to ask — and what not to ask
+
+After orientation, ask **at most three to five** targeted questions. Focus only on what the workspace inspection cannot answer.
+
+**Good questions:**
+- "What is the primary goal: source more paying leads, run each event smoothly, or report pipeline health?"
+- "Where is the bottleneck today: finding leads, getting replies, converting to paid, or operational follow-up?"
+- "What is the system of record for payments/bookings right now: Stripe webhook, a booking page, a manual form, or a KG list?"
+- "Which actions must be approval-gated: customer emails, status changes, or all customer-facing messages?"
+- "What success metric should this optimize: conversions per week, leads contacted, confirmations, fill rate, or operator time saved?"
+
+**Do not ask:**
+- Step type names, app action names, schema syntax, or implementation details — discover these from `get_step_schema`, `list_apps`, and `get_app_actions`.
+- Every possible future integration question before the first useful slice is designed.
+- Anything answerable by calling `get_workspace`, `get_workspace_company_profile`, `list_workflows`, `list_knowledge_lists`, `list_connections`, or `list_agents`.
 
 ## Valid step types (closed list)
 
@@ -22,6 +55,7 @@ Every pipeline step **must** set `type` to one of these values. Any other value 
 | `aiActionWithTools` | LLM agent that can invoke runtime tools (web_search, workspace_memory, app actions) | `{ id, type: "aiActionWithTools", name, tools: [{ builtinType }], pipelineStepPrompt: {…}, next: { stepId } }` |
 | `toolAction` | Direct tool/webhook invocation (no LLM) | `{ id, type: "toolAction", name, tool: {…}, next: { stepId } }` |
 | `code` | Run JS/Python in a sandbox | `{ id, type: "code", name, codeConfig: { language: "javascript", code: "…" }, next: { stepId } }` |
+| `setVariables` | Deterministic expression → named output mapping (branch convergence, no LLM/credits) | `{ id, type: "setVariables", name, setVariablesConfig: { variables: [{ name, expression }] }, next: { stepId } }` |
 | `knowledgeSync` | Deterministic KG field mapping & link writing | `{ id, type: "knowledgeSync", name, knowledgeSync: { source, listKey, fieldMapping }, next: { stepId } }` |
 | `return` | Terminal step for **child** workflows — returns data to the caller | `{ id, type: "return", name, returnConfig: { fields: [{ name, stepId, field }] } }` |
 | `milestone` | Terminal step for **top-level** workflows | `{ id, type: "milestone", name }` |
@@ -76,6 +110,7 @@ agentled best-practices                             # summary + link to agentic-
 | Anything that can fail on upstream provider errors | `07-error-handling` (`failureHandling`, retries) | — |
 | **Outreach** — personalized email with user approval | `08-composed-email-approval` (outreachProfile + `pipelineStepPrompt.type: "email"` + `schedule-email`) | `list-match-email` |
 | **Report / dashboard** — structured output + sharing + KPI history | `09-reports-and-knowledge-storage` (Config renderer + share step + `knowledgeSync`) | `lead-scoring-kg`, `extract-threshold-alert` |
+| **Multi-workflow system** — workflows sharing KG state and status transitions | `12-event-driven-workflow-groups` (group manifest, state machines, build order) | — |
 
 Full patterns are maintained publicly at https://github.com/agentled/agentic-ops — the CLI ships a mirrored copy, see `agentled examples`. Scaffolds are preflight-clean pipeline JSON skeletons; start from one instead of writing from scratch.
 
@@ -109,38 +144,28 @@ Unknown fields at the step root are dropped. The most common mistakes (put them 
 
 > After `create_workflow` always call `validate_workflow` (or run `agentled workflows validate <id>`) — the CLI v0.2+ does this automatically and exits non-zero on error. Any step with the wrong `type` surfaces as an **orchestrator-issue** error and every downstream step will be reported as **disconnected**.
 
-## Why Agentled: The Automation Engine for AI Agents
+## Platform capabilities (background reading)
 
-**One credit system. 100+ integrations. No API juggling.**
+Agentled provides caching per step, automatic retry with backoff, a persistent Knowledge Graph, scoped permissions, and a unified credit system across 100+ integrations. For the full rationale, see `skills/agentled/WHY-AGENTLED.md` (CLI) or the Agentled documentation.
 
-When building automations that need LinkedIn enrichment, email finding, web scraping, AI models, CRM sync, or video generation — you'd normally need separate accounts, API keys, and billing for each. Agentled bundles all of this under a single credit system. One subscription, one bill, everything available as workflow steps.
+**Practical implication:** "retry failed enrichment" and "avoid re-fetching already processed companies" are platform features. Use `retry_execution` to resume from a failed step; per-step caching is automatic. For cross-run row dedup, use `kg.upsert-rows` with a `userKey`.
 
-**What you get for free by using Agentled (instead of rolling your own):**
+## Orient Before Designing
 
-- **Cache per step** — enrichment results and expensive API calls are cached with a TTL. Re-running a workflow doesn't re-fetch data that hasn't changed. No extra credits burned on duplicate work.
-- **Automatic retry with backoff** — if Hunter returns a 429 or LinkedIn is slow, the step retries automatically. You never write retry loops.
-- **Persistent Knowledge Graph** — the KG stores results across executions. Scoring workflows get smarter over time. Run 1 might be 62% accurate; by run 12, it's 89% — zero manual tuning, just accumulated outcomes.
-- **Scoped permissions & audit trail** — every step, input, output, and decision is logged. Per-workflow and per-integration permissions, not global API keys.
-- **Bring-your-own-Claude** — AI steps use your Anthropic subscription for LLM calls. Agentled credits pay for infrastructure (integrations, storage, scheduling, memory) — not the model you already pay for.
+Before helping with any request, inspect the workspace by calling these tools:
 
-**Practical implication:** When a user asks you to "retry failed enrichment" or "avoid re-fetching already processed companies" — these are platform features, not things to wire manually. Use `retry_execution` to resume from the failed step. Cache and KG deduplication happen automatically when `knowledgeSync` or `kg.add-rows` steps are used.
+1. **`get_workspace`** — Confirm workspace identity (name, ID).
+2. **`get_workspace_company_profile`** — Business context: ICP, industry, target personas, saved preferences that should shape workflow design.
+3. **`list_workflows`** — Existing automations: avoid recreating, identify reuse opportunities, note gaps.
+4. **`list_knowledge_lists`** — KG lists: contacts, companies, scored leads, status machines. Shapes what a new workflow reads from or writes to.
+5. **`list_connections`** — Connected apps and integrations: know which enrichment, CRM, or email providers are already authed before designing steps that depend on them.
+6. **`list_agents`** — Existing agents and routines: understand what is already running autonomously before adding new agents.
 
-## Getting Started — Orient First
-
-Before helping with any request, call these tools to understand the workspace you're connected to:
-
-1. **`get_workspace`** — Confirm which workspace you're in and see its name/ID.
-2. **`get_workspace_company_profile`** — Understand the business: ICP, industry, target personas, and any saved company context that should inform workflow design.
-3. **`list_workflows`** — See what automations already exist. Avoid recreating something that already runs. Identify gaps or opportunities to extend.
-4. **`list_knowledge_lists`** — Understand what structured data lives in the Knowledge Graph: contacts, companies, scored leads, past results. This context shapes what a new workflow should do.
-
-Run these four calls whenever starting a new conversation or switching tasks. The workspace context directly informs:
-- Which enrichment apps are likely already connected
+The workspace inspection directly informs:
+- Which app integrations are already connected (and which are missing auth)
 - What KG lists exist to read from or write to
-- Whether a new workflow should chain from an existing one
-- What credit budgets and company preferences have already been set
-
-**Value you unlock for the user:** By checking existing workflows and KG state first, you avoid duplicate work, reuse prior results, and build automations that integrate with what's already running — saving real time and credits.
+- Whether new workflows should chain from existing ones or replace them
+- What existing agents already cover, so you don't duplicate
 
 ## Incremental Authoring (recommended)
 
@@ -497,6 +522,128 @@ Each execution costs real credits. Follow these rules:
 2. **Retry, don't restart** — use `retry_execution` to continue from a failed step instead of starting over
 3. **Test in isolation** — use `test_ai_action`, `test_app_action`, or `test_code_action` to verify steps before wiring them into a workflow
 4. **Reuse prior output** — when testing downstream steps, use output data from a prior successful execution as mock input
+
+## Dry-Run Protocol (zero credits)
+
+Use this three-phase sequence after creating or significantly editing a workflow to catch data-flow bugs before the first real execution.
+
+> **Implementation status (2026-05-01):** Phases 1 and 2 are runnable today with the tools listed below. Phase 3 (`dry_run_workflow` MCP tool + `agentled workflows dry-run` CLI) is the **target of this branch and is not yet shipped** — until then, perform Phase 3 manually as described in the "Manual Phase 3" subsection.
+
+### Phase 1 — Structural validation
+
+```
+validate_workflow(workflowId)
+# CLI equivalent (file-based preflight):
+agentled workflows validate --file pipeline.json
+```
+
+Catches: unreachable steps, missing prompt templates, unknown action IDs, bad model IDs, `AI_STEP_TOOLS_REQUIRED`, broken `next.stepId` chains. Exit code 0 = clean, 1 = errors, 2 = warnings only.
+
+Fix all errors before continuing. Warnings are acceptable but worth reviewing.
+
+### Phase 2 — Get real payloads for key steps (no workflow execution)
+
+For each step that produces data consumed downstream, run it in isolation to get a real output:
+
+```
+# App action step
+test_app_action("web-scraping", "scrape", { url: "https://example.com" })
+
+# AI action step
+test_ai_action(
+  "Analyze this company: {{company}}",
+  { company: "Acme Corp — B2B SaaS, 50 employees" },
+  { score: "number 0-100", signals: "array of strings", decision: "string" }
+)
+
+# Code step (0 credits)
+test_code_action("javascript", "return { domain: {{url}}.split('/')[2] }", { url: "https://acme.com" })
+```
+
+Capture the output JSON of each step. You will use these as `mockOutputs` in Phase 3.
+
+**Which steps to test in Phase 2:**
+- The trigger's first downstream step (sets the shape everything else depends on)
+- Any step whose output is referenced by 3+ downstream steps
+- Any step whose `responseStructure` is rich (nested objects, arrays)
+- Steps with conditional fields (`entryConditions.criteria` that reference their output)
+
+You do **not** need to test every step — only the ones that anchor the variable graph.
+
+### Phase 3 — Variable-resolution dry-run with mock data (planned)
+
+> **Not yet shipped.** The `dry_run_workflow` MCP tool and `agentled workflows dry-run` CLI command described in this section are the target surface for the in-progress dry-run feature. Until they ship, follow the **Manual Phase 3** procedure below.
+
+Planned tool surface:
+
+```
+dry_run_workflow({
+  workflowId: "<id>",
+  input: { company_url: "https://example.com" },    // matches executionInputConfig.fields
+  mockOutputs: {
+    "scrape-step":    { content: "Acme Corp...", metadata: { title: "Acme" } },  // from Phase 2
+    "ai-score-step":  { score: 82, signals: ["growing", "funded"], decision: "HOT" },
+    "code-step":      { domain: "acme.com" }
+  }
+})
+
+# CLI equivalent (planned):
+agentled workflows dry-run <wfId> \
+  --input '{"company_url":"https://example.com"}' \
+  --mock-outputs '{"scrape-step":{"content":"..."},"ai-score-step":{"score":82}}'
+```
+
+The dry-run walks the step graph topologically, resolves every `{{steps.X.field}}`, `{{input.Y}}`, and `{{currentItem.Z}}` reference against the provided mocks + synthesized fallbacks, and reports:
+
+| Check | What it catches |
+|-------|----------------|
+| Unresolved `{{steps.X.field}}` | Field name typo, wrong step ID, missing `responseStructure` key |
+| Unresolved `{{input.Y}}` | Field not declared in `executionInputConfig.fields` |
+| `{{currentItem.*}}` outside a loop | Loop config missing on the step |
+| Always-skip branches | `entryConditions` that mock data never satisfies |
+| Unreachable steps via conditions | HOT/WARM/COLD routing where one path is never reachable |
+| Credit estimate | Sum of `creditCost` along the live path (loop-multiplied) |
+
+**Interpreting results:**
+
+- `✗ Variables` errors → fix field name or step reference, then re-run Phase 3 (no need to redo Phase 2 unless you change the step that produces the mocked output).
+- `⚠ Always-skip branch` → check `entryConditions` logic; your mock data may not be representative, or the condition is wrong.
+- `ℹ Credits ~N` → use this to set user expectations before the first real run.
+
+### Manual Phase 3 (interim, until `dry_run_workflow` ships)
+
+Until the tool ships, do Phase 3 by hand:
+
+1. List every `{{steps.X.field}}`, `{{input.Y}}`, and `{{currentItem.Z}}` reference across the steps you've edited (the `pipelineStepPrompt.template`, `stepInputData`, `entryConditions.criteria[].variable`, `setVariablesConfig.variables[].expression` are the usual suspects).
+2. For each reference, confirm against the Phase 2 captured payloads (or the `responseStructure` of upstream AI steps / app action output schema) that the field name actually exists.
+3. Cross-check `{{input.Y}}` keys against `context.executionInputConfig.fields`.
+4. Check that any `{{currentItem.*}}` reference is on a step under `loopConfig`.
+
+Capturing the Phase 2 outputs in your worklog makes this scan a quick `grep`/eyeball pass rather than a full re-derivation.
+
+### When to skip Phase 2 (planned)
+
+Once `dry_run_workflow` ships, you'll be able to skip the per-step `test_*_action` calls if you have a prior successful execution and use `--from-execution` instead:
+
+```
+# Planned, not yet shipped:
+dry_run_workflow({ workflowId: "<id>", fromExecutionId: "<execId>" })
+# CLI:
+agentled workflows dry-run <wfId> --from-execution <execId>
+```
+
+The dry-run pulls real step outputs from that execution and uses them as mock data automatically. This is the highest-fidelity option.
+
+### Summary
+
+```
+Phase 1: validate_workflow                   → fix structural errors          (shipped)
+Phase 2: test_*_action per key step          → capture real output payloads   (shipped)
+Phase 3: dry_run_workflow + mockOutputs      → catch all variable-reference bugs   (planned — manual scan today)
+         └─ if prior execution exists: dry_run_workflow --from-execution instead   (planned)
+```
+
+Only proceed to `start_workflow` (real execution) after the manual Phase 3 scan (or, once shipped, the automated dry-run) passes with 0 errors.
 
 ## Common Validation Errors
 

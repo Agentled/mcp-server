@@ -335,10 +335,16 @@ AI steps can optionally specify a model and provider via the `agent` field:
   "id": "transform",
   "type": "code",
   "name": "Transform Data",
-  "codeConfig": { "language": "javascript", "code": "const data = {{steps.prev.output}};\nreturn data.map(x => x.name);" },
+  "codeConfig": {
+    "language": "javascript",
+    "code": "const data = {{steps.prev.output}};\nreturn data.map(x => x.name);",
+    "responseStructure": { "items": "array of strings" }
+  },
   "next": { "stepId": "next-step" }
 }
 ```
+
+Declare `responseStructure` when downstream steps reference this step's output via loops or template variables — flat map of `{ field: "type description" }`. Without it, loop source validation emits a warning; with it, typos in field names are caught as blockers.
 
 ### Milestone (terminal)
 ```json

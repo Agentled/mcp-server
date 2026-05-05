@@ -22,6 +22,7 @@ import { registerProactiveAgentTools } from './tools/proactive-agents.js';
 import { registerFeedbackTools } from './tools/feedback.js';
 import { registerMemoryTools } from './tools/memory.js';
 import { registerRoutineTools } from './tools/routines.js';
+import { registerFormTools } from './tools/forms.js';
 import { registerAppResources } from './resources/apps.js';
 import { registerWorkflowResources } from './resources/workflows.js';
 
@@ -94,6 +95,7 @@ export function createServer(): McpServer {
     registerFeedbackTools(server, clientFactory);
     registerMemoryTools(server, clientFactory);
     registerRoutineTools(server, clientFactory);
+    registerFormTools(server, clientFactory);
 
     // Register resources
     registerAppResources(server, clientFactory);

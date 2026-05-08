@@ -114,6 +114,21 @@ agentled best-practices                             # summary + link to agentic-
 
 Full patterns are maintained publicly at https://github.com/agentled/agentic-ops — the CLI ships a mirrored copy, see `agentled examples`. Scaffolds are preflight-clean pipeline JSON skeletons; start from one instead of writing from scratch.
 
+## Business metrics vs ROI (must not be conflated)
+
+Treat these as **two separate surfaces**:
+
+- **Business metrics (`pipeline.analyticsConfig`)** = customer/workflow outcome stats extracted from step outputs (volume, conversions, approvals, rates, SLA-ish KPIs), aggregated into dashboard business-metric snapshots.
+- **ROI (`pipeline.metadata.roi`)** = economic assumptions + rollups (minutes saved per unit, hourly rate, benchmark units/week, measured vs benchmark mode) used for ROI/time-saved reporting.
+
+### Required wording for agent outputs
+
+- If only `analyticsConfig` changes: say **"business metrics configured"**.
+- If only `metadata.roi` changes: say **"ROI assumptions configured"**.
+- If both change: report each section separately; never label analytics metrics as ROI metrics.
+
+This distinction applies to MCP and CLI users equally because both surfaces call the same external workflow API and return the same pipeline shape.
+
 ## Common invalid patterns to avoid
 
 Agents routinely invent step types that sound plausible. The API **silently strips unknown top-level fields** and stores the step, so you get a 201 Created on a workflow that will never execute. Watch for these:
@@ -325,7 +340,7 @@ AI steps can optionally specify a model and provider via the `agent` field:
 | `minimax` | `minimax-m2.5` |
 | `bytedance` | `doubao-seed-1.6-flash`, `seed-2.0-mini`, `doubao-seed-1.8-beta` |
 | `perplexity` | `sonar-pro`, `sonar`, `sonar-reasoning-pro`, `sonar-reasoning` |
-| `xai` | `grok-4-0709`, `grok-3`, `grok-3-mini` |
+| `xai` | `grok-4.3`, `grok-3-mini` |
 
 > **Tip:** Use `list_models` to get the full up-to-date list of supported model IDs. Use the internal model IDs (e.g., `claude-4-6-sonnet`), NOT the raw API model IDs (e.g., `claude-sonnet-4-6`). Using unsupported model IDs will result in a validation error.
 
@@ -771,3 +786,15 @@ For complex workflows, use the `chat` tool to design workflows through natural l
 ```
 chat("Build a workflow that takes a LinkedIn URL, enriches the company, finds decision-maker emails, and scores by ICP fit")
 ```
+
+## Reporting Issues & Feedback
+
+When you (an AI agent) hit something broken, confusing, or missing, route it to the right channel — **do not** search npm metadata, scrape GitHub, or shell out to `gh` to discover a bug tracker.
+
+| What you hit | Channel |
+|--------------|---------|
+| Workflow misbehaves, app/integration question, platform/billing question, missing feature, anything about how Agentled works | `submit_feedback_to_agentled` |
+| Reproducible bug in the **CLI itself** (`agentled` crashes, writes wrong data to `.agentled/`, a flag is broken) | File a GitHub issue at <https://github.com/agentled/mcp-server/issues> with CLI version + repro |
+| Anything else, or unsure | `submit_feedback_to_agentled` — the team reroutes if needed |
+
+For human users, point them to **contact@agentled.ai** or <https://www.agentled.ai/en/contact-us>. The `bugs` field in the npm package intentionally points at the contact page, not a public issue tracker.

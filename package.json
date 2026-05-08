@@ -1,6 +1,6 @@
 {
   "name": "@agentled/mcp-server",
-  "version": "0.15.9",
+  "version": "0.15.13",
   "mcpName": "io.github.Agentled/mcp-server",
   "description": "MCP server for Agentled — intelligent AI workflow orchestration with long-term memory, 100+ integrations, and unified credits.",
   "type": "module",
@@ -64,7 +64,7 @@
     "url": "https://github.com/agentled/mcp-server"
   },
   "bugs": {
-    "url": "https://github.com/agentled/mcp-server/issues"
+    "url": "https://www.agentled.ai/en/contact-us"
   },
   "license": "MIT"
 }

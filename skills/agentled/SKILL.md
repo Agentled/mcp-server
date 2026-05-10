@@ -108,8 +108,10 @@ agentled best-practices                             # summary + link to agentic-
 | A child workflow called via `call-workflow` | `05-child-workflow-contracts` (use `return`, not `milestone`) | — |
 | Multi-path routing by score / category / condition | `06-conditional-routing` (`entryConditions.criteria`, not `conditions`) | `extract-threshold-alert` |
 | Anything that can fail on upstream provider errors | `07-error-handling` (`failureHandling`, retries) | — |
-| **Outreach** — personalized email with user approval | `08-composed-email-approval` (outreachProfile + `pipelineStepPrompt.type: "email"` + `schedule-email`) | `list-match-email` |
-| **Report / dashboard** — structured output + sharing + KPI history | `09-reports-and-knowledge-storage` (Config renderer + share step + `knowledgeSync`) | `lead-scoring-kg`, `extract-threshold-alert` |
+| **Outreach** — personalized email with user approval | `08-composed-email-approval` (`pipelineStepPrompt.type: "email"` + approval + `schedule-email`; add outreachProfile only for user-selected connected senders) | `list-match-email` |
+| **Report / dashboard** — structured output + sharing + KPI history | `09-reports-and-knowledge-storage` (Config renderer + share step + optional notification email with report URL) — see § Pattern A (scoringHeader + dimensionScores for any 0–100 scored output) and § Pattern B (funnel for orchestrator digests) | `lead-scoring-kg`, `extract-threshold-alert` |
+| **Scored AI output** (any step that produces a 0–100 score, decision, and per-dimension breakdown) | `09-reports-and-knowledge-storage` § Pattern A — `scoringHeader` + `dimensionScores` + rubric `table`, NOT a wall of `markdown` blocks | — |
+| **Orchestrator digest** (pipeline health, daily/weekly summary, batch report) | `09-reports-and-knowledge-storage` § Pattern B — `funnel` block with `stages: [{ label, valuePath, icon }]` for stage-by-stage attrition | — |
 | **Multi-workflow system** — workflows sharing KG state and status transitions | `12-event-driven-workflow-groups` (group manifest, state machines, build order) | — |
 
 Full patterns are maintained publicly at https://github.com/agentled/agentic-ops — the CLI ships a mirrored copy, see `agentled examples`. Scaffolds are preflight-clean pipeline JSON skeletons; start from one instead of writing from scratch.
@@ -158,6 +160,19 @@ Unknown fields at the step root are dropped. The most common mistakes (put them 
 | `enabled: false` | `entryConditions.onCriteriaFail: "skip"` with a falsy criterion, or remove the step |
 
 > After `create_workflow` always call `validate_workflow` (or run `agentled workflows validate <id>`) — the CLI v0.2+ does this automatically and exits non-zero on error. Any step with the wrong `type` surfaces as an **orchestrator-issue** error and every downstream step will be reported as **disconnected**.
+
+### Renderer mistakes that render silently as null
+
+The Config renderer accepts the step config without validation, then individual block renderers `return null` on malformed config. Result: invisible gaps in the report and no error. The four traps:
+
+| ❌ Wrong | ✅ Right | Why |
+|---------|---------|-----|
+| `{ blockType: "section", title, blocks: [...] }` | `{ blockType: "section", title, fields: [{ name, label, display? }] }` | The `section` renderer only reads `fields[]`. Nested `blocks[]` is dropped. Use `grid` (which DOES accept `blocks[]`) for nesting. |
+| `{ blockType: "markdown", title: "Score: {{score}}/20", contentPath }` | `{ blockType: "section", title: "Score: {{score}}/20", fields: [{ name: contentPath, display: "text" }] }` | Markdown block titles are NOT template-resolved. Only `section` titles are. |
+| `{ blockType: "scoringHeader", scorePath, max }` (no thresholds) | Add `thresholds: [{min:70,color:"emerald"},{min:40,color:"amber"},{min:0,color:"rose"}]` | Without thresholds the score chip renders gray. Same applies to `dimensionScores` per-dimension thresholds. |
+| Wall of `markdown` blocks for a scored AI output | `scoringHeader` (hero) + `dimensionScores` (rubric bars) + `table` (rationale) + body sections | A scored step produces a verdict — surface it. See `packages/cli/patterns/v1/09-reports-and-knowledge-storage.md` § Pattern A. |
+
+For orchestrator digests (pipeline health, daily/weekly summaries) use the **`funnel` block** with `stages: [{ label, valuePath, icon }]` — see § Pattern B. The funnel auto-detects bottlenecks from stage-to-stage drops.
 
 ## Platform capabilities (background reading)
 
@@ -241,6 +256,53 @@ For live workflows, prefer per-step tools over bulk updates:
 6. Test: `start_workflow` with sample input
 7. Check results: `get_execution` to see step outputs
 
+## Workspace Surfaces
+
+The workspace home and sidebar carry workspace-level UI state on `Workspace.metadata`. These surfaces are read-only via the MCP today (most tooling does not need to write them), but agents authoring templated workspaces should know they exist:
+
+### Pinned outputs (sidebar shortcuts)
+
+`Workspace.metadata.pinnedOutputs[]` lists output pages that appear in the sidebar **after Knowledge & Data**, always visible regardless of which workflow is currently open. Operators set these manually from each output page's configuration sheet (toggle: *"Pin to workspace home"*). Pin sparingly: only pin output pages that are useful as direct workspace-level destinations, such as a recurring report, scoring dashboard, or canonical results list. Do not pin every output page, implementation detail, approval surface, or one-off execution artifact; normal workflow output pages remain accessible from the workflow itself. Each entry:
+
+```json
+{
+  "pipelineId": "wfl_abc123",
+  "pipelinePathname": "deal-flow",
+  "outputPagePathname": "weekly-report",
+  "label": "Weekly Investor Report",
+  "iconName": "FileText",
+  "pipelineName": "Deal Sourcing",
+  "colorTextClass": "text-emerald-700 dark:text-emerald-400",
+  "pinnedAt": "2026-05-09T10:00:00Z"
+}
+```
+
+All snapshot fields capture the source values at pin time and do not auto-update if the workflow or page is later renamed or restyled. To refresh, the operator unpins and re-pins.
+
+Sidebar rendering uses each field directly:
+- `label` is the primary line.
+- `pipelineName` renders in small muted text below the label, so two pins with the same `label` from different workflows are distinguishable.
+- `iconName` resolves to a lucide icon (defaults to `Pin` if missing or unknown).
+- `colorTextClass` is applied as a Tailwind class on the icon, mirroring the source workflow's accent. Use the same shape produced by the workflow style picker (e.g. `text-emerald-700 dark:text-emerald-400`).
+- The pin row renders as **active** when the operator's current URL matches the pin's target.
+
+When seeding a workspace via templates, pre-populate `pinnedOutputs[]` only for the curated artifacts the operator should access directly from the workspace sidebar on day one. Supply `pipelineName` and `colorTextClass` for the proper rendering (otherwise they fall back to the muted default, which still works but loses the visual cue). Pin entries reference output pages that exist on workflows in the same workspace; entries pointing at deleted or renamed pipelines still render — the URL just resolves to a 404 page until the pin is removed.
+
+### Cluster summaries
+
+Each workflow card (cluster) on the home page renders a per-cluster summary block above its workflow cards. The summary is read from the freshest `pipeline.metadata.executiveSummary` across the cluster's pipelines:
+
+```json
+{
+  "body": "Sourcing surfaced 47 new startups this week. 12 met the fit threshold; 4 high-priority.",
+  "bullets": ["47 new candidates", "12 qualified", "4 high-priority"],
+  "generatedAt": "2026-05-09T07:00:00Z",
+  "author": "by Sourcing Agent"
+}
+```
+
+This field is intended to be written by an agent routine that has access to the cluster's KG list and recent executions. The home page renders nothing when no pipeline in the cluster has a summary — there is no fallback narrative.
+
 ## Workspace Awareness
 
 Be explicit about which Agentled workspace you are operating on.
@@ -289,7 +351,7 @@ Every workflow needs at minimum: a trigger step, one or more action steps, and a
   "id": "enrich",
   "type": "appAction",
   "name": "Enrich Company",
-  "app": { "id": "agentled", "actionId": "get-linkedin-company-from-url", "source": "native" },
+  "app": { "id": "agentled", "actionId": "agentled.get-linkedin-company-from-url", "source": "native" },
   "stepInputData": { "profileUrls": "{{input.company_url}}" },
   "next": { "stepId": "next-step" }
 }
@@ -442,6 +504,8 @@ See `docs/workflows/triggers.md` for the full decision framework, query examples
 
 Email steps use a single `aiAction` step (never separate "draft" + "gmail send" appAction steps). The AI drafts the email, a human approves, then the platform sends it.
 
+For workflows that gather or show information and then email the result, use this sequence instead of embedding the full result in the email: report `aiAction` with a Config renderer → `share` step → composed notification email `aiAction`. The notification email should be email-safe HTML with a short overview and `{{steps.<shareStepId>.shareUrl}}`. Do not add Gmail/Outlook/Composio send appAction steps unless the user explicitly asks to send through that provider account.
+
 ### 1. Outreach Profile Input Page
 
 When a workflow sends emails, add an outreach profile input page to `context.inputPages` so the user can configure sender identity:
@@ -511,13 +575,14 @@ When a workflow sends emails, add an outreach profile input page to `context.inp
 
 ### Key Requirements
 
-- **Always** include `outreachProfile` input page when using email
+- Include `outreachProfile` input page when the user must choose a connected personal sender
 - `pipelineStepPrompt.type: "email"` — tells the system this is an email step
 - `renderer.config.fromContextKey: "outreachProfile"` — links renderer to sender profile
 - `onApproval.action: "schedule-email"` — triggers the actual send; without it, approval does nothing
 - `next.conditions.approvalRequired: true` — blocks the pipeline until human approval
 - Email body must be email-safe HTML (`<p>`, `<br>`, `<a>`, `<strong>` — no CSS, no scripts)
 - **Never** use separate "draft" + "gmail send" appAction steps for outreach
+- For report notifications, create a share URL and include that URL in the email instead of copying the full report into the email body
 
 ## Top Apps Quick Reference
 

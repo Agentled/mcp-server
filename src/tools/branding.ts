@@ -9,6 +9,34 @@ import type { ClientFactory } from '../server.js';
 export function registerBrandingTools(server: McpServer, clientFactory: ClientFactory) {
 
     server.tool(
+        'get_workspace_credits',
+        `Get the workspace's current credit balance and usage statistics.
+
+Returns:
+- currentBalance: remaining credits on the subscription plan
+- planType: subscription tier (e.g., "pro", "teams")
+- periodDays: lookback window for usage stats (default 30 days)
+- usedThisPeriod: total credits consumed in the last N days
+- totalExecutions: number of unique workflow executions in the period
+- averageCreditsPerExecution: average cost per run
+- recentUsage: last 20 credit deductions with execution/step context
+
+Use this to check if the workspace has enough credits before starting expensive workflows,
+or to report balance and burn rate to stakeholders.`,
+        {},
+        async (_args, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.getWorkspaceCredits();
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
         'get_branding',
         `Get the workspace's whitelabel branding configuration.
 Returns the current branding settings: displayName, logoUrl, tagline, primaryColor, primaryColorDark, faviconUrl, and hideBadge.

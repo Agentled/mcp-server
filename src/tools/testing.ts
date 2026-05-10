@@ -59,4 +59,28 @@ Example: test_ai_action("Analyze this company: {{company}}", { company: "Stripe"
             };
         }
     );
+
+    server.tool(
+        'test_code_action',
+        `Test a code step in isolation without creating a workflow or execution.
+Pass JavaScript code with optional {{variable}} template syntax and variable values to execute in the same sandboxed vm context as the production orchestrator.
+Useful for verifying code logic and template variable resolution before adding a code step to a workflow.
+No credits consumed.
+Example: test_code_action("javascript", "const items = {{items}};\\nreturn items.map(p => ({ name: p.fullName }));", { items: [{ fullName: "John" }, { fullName: "Jane" }] })`,
+        {
+            language: z.enum(['javascript']).describe('Code language (currently only "javascript" is supported)'),
+            code: z.string().describe('JavaScript code to execute. Supports {{variable}} template placeholders that will be resolved from the variables parameter.'),
+            variables: z.record(z.string(), z.any()).optional().describe('Variable values to substitute in {{variable}} placeholders in the code (e.g., { items: [{ name: "John" }] })'),
+        },
+        async ({ language, code, variables }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.testCodeAction(code, language, variables);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
 }

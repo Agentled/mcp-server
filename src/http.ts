@@ -15,12 +15,16 @@
 import { createServer as createHttpServer, IncomingMessage, ServerResponse } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { createRequire } from 'node:module';
 import { createServer } from './server.js';
 import { verifyMcpToken } from './auth.js';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const AGENTLED_URL = process.env.AGENTLED_URL || 'https://www.agentled.app';
 const MCP_BASE_URL = process.env.MCP_BASE_URL || 'https://mcp.agentled.app';
+const require = createRequire(import.meta.url);
+const mcpPackage = require('../package.json') as { version: string };
+const corePackage = require('@agentled/core/package.json') as { version: string };
 
 // Per-session transport map
 const transports: Record<string, StreamableHTTPServerTransport> = {};
@@ -73,8 +77,70 @@ async function main() {
 
         // Health check
         if (req.url === '/health') {
-            sendJson(res, 200, { status: 'ok', transport: 'streamable-http' });
+            sendJson(res, 200, {
+                status: 'ok',
+                transport: 'streamable-http',
+                version: mcpPackage.version,
+                coreVersion: corePackage.version,
+            });
             return;
+        }
+
+        // Version check for deploy verification and connector debugging.
+        if (req.url === '/version') {
+            sendJson(res, 200, {
+                status: 'ok',
+                package: '@agentled/mcp-server',
+                version: mcpPackage.version,
+                corePackage: '@agentled/core',
+                coreVersion: corePackage.version,
+                transport: 'streamable-http',
+            });
+            return;
+        }
+
+        // Root — browser landing page with branding
+        if (req.url === '/' || req.url === '') {
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agentled MCP Server</title>
+  <link rel="icon" type="image/png" href="${AGENTLED_URL}/images/logos/icon-180.png" />
+  <style>
+    body { margin: 0; background: #030712; color: #f9fafb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .card { text-align: center; padding: 2rem; }
+    img { width: 64px; height: 64px; border-radius: 14px; margin-bottom: 1.5rem; }
+    h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem; }
+    p { color: #9ca3af; font-size: 0.875rem; margin: 0; }
+    a { color: #818cf8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="${AGENTLED_URL}/images/logos/icon-180.png" alt="Agentled" />
+    <h1>Agentled MCP Server</h1>
+    <p>Connect via <a href="${AGENTLED_URL}" target="_blank">agentled.app</a></p>
+  </div>
+</body>
+</html>`);
+            return;
+        }
+
+        // Favicon — proxy from main app
+        if (req.url === '/favicon.ico') {
+            try {
+                const iconRes = await fetch(`${AGENTLED_URL}/images/logos/icon-180.png`);
+                if (iconRes.ok) {
+                    const buf = await iconRes.arrayBuffer();
+                    res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' });
+                    res.end(Buffer.from(buf));
+                    return;
+                }
+            } catch { /* fall through to 404 */ }
         }
 
         // Glama server metadata (required for Glama connector health check)
@@ -114,6 +180,8 @@ async function main() {
                 code_challenge_methods_supported: ['S256'],
                 token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic'],
                 scopes_supported: ['mcp:full'],
+                service_documentation: AGENTLED_URL,
+                logo_uri: `${AGENTLED_URL}/images/logos/icon-180.png`,
             }, { 'Cache-Control': 'public, max-age=3600' });
             return;
         }
@@ -152,12 +220,59 @@ async function main() {
             return;
         }
 
-        // MCP endpoint — requires workspace prefix and Bearer token auth
-        if (path === '/mcp' || path.startsWith('/mcp')) {
-            if (!urlWorkspaceId) {
-                sendJson(res, 404, { error: 'Workspace ID required. Use /{workspaceId}/mcp' });
+        // MCP endpoint — root /mcp (no workspace) for health probing by Glama / connector registries.
+        // Responds to initialize + tools/list without auth so the connector shows healthy.
+        // No workspace context is set — all tool calls return errors if attempted.
+        if ((path === '/mcp' || path.startsWith('/mcp')) && !urlWorkspaceId) {
+            if (req.method === 'OPTIONS') {
+                res.writeHead(204);
+                res.end();
                 return;
             }
+
+            if (req.method !== 'POST') {
+                sendJson(res, 405, { error: 'Method Not Allowed' });
+                return;
+            }
+
+            const body = await readBody(req);
+            let parsed: any;
+            try {
+                parsed = JSON.parse(body.toString());
+            } catch {
+                sendJson(res, 400, { jsonrpc: '2.0', error: { code: -32700, message: 'Parse error' }, id: null });
+                return;
+            }
+
+            if (isInitializeRequest(parsed)) {
+                const transport = new StreamableHTTPServerTransport({
+                    sessionIdGenerator: () => crypto.randomUUID(),
+                    onsessioninitialized: (newSessionId) => {
+                        transports[newSessionId] = transport;
+                    },
+                });
+                transport.onclose = () => {
+                    const sid = transport.sessionId;
+                    if (sid && transports[sid]) delete transports[sid];
+                };
+                const server = createServer();
+                await server.connect(transport);
+                await transport.handleRequest(req, res, parsed);
+                return;
+            }
+
+            const sessionId = req.headers['mcp-session-id'] as string | undefined;
+            if (sessionId && transports[sessionId]) {
+                await transports[sessionId].handleRequest(req, res);
+                return;
+            }
+
+            sendJson(res, 400, { jsonrpc: '2.0', error: { code: -32000, message: 'Bad Request: No valid session ID' }, id: null });
+            return;
+        }
+
+        // MCP endpoint — requires workspace prefix and Bearer token auth
+        if (path === '/mcp' || path.startsWith('/mcp')) {
 
             const authHeader = req.headers.authorization;
 

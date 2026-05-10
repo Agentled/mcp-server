@@ -46,10 +46,15 @@ Example: chat("Build me a workflow that takes a LinkedIn company URL, enriches t
                     };
                 }
 
+                const text = result.response || JSON.stringify(result, null, 2);
+                const sessionId = result.sessionId;
+
                 return {
                     content: [{
                         type: 'text' as const,
-                        text: result.response || JSON.stringify(result, null, 2),
+                        text: sessionId
+                            ? JSON.stringify({ response: text, sessionId })
+                            : text,
                     }],
                 };
             } catch (error: any) {

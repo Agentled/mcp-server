@@ -24,8 +24,8 @@ export const CONTEXT_FIELD_TYPES = [
     { type: 'date', description: 'Date picker' },
     { type: 'datetime', description: 'Date + time picker' },
     { type: 'json', description: 'Raw JSON editor' },
-    { type: 'connected_emails_selector_multiple', description: 'Multi-select from user\'s connected email accounts (required for outreachProfile.fromEmail)' },
-    { type: 'connected_emails_selector', description: 'Single-select from user\'s connected email accounts' },
+    { type: 'connected_emails_selector_single', description: 'Single-select from user\'s connected email accounts (default for outreachProfile.fromEmail)' },
+    { type: 'connected_emails_selector_multiple', description: 'Multi-select from user\'s connected email accounts (use for outreachProfile.fromEmail only when sender rotation is requested)' },
     { type: 'workflow_selector', description: 'Workflow picker (returns workflowId)' },
     { type: 'knowledge_list_selector', description: 'Knowledge list picker (returns listKey)' },
 ];

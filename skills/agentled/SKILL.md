@@ -520,7 +520,7 @@ When a workflow sends emails, add an outreach profile input page to `context.inp
     "fields": [
       { "name": "name", "label": "Sender Name", "type": "text", "required": true },
       { "name": "fromEmailLabel", "label": "From Name", "type": "text", "required": true },
-      { "name": "fromEmail", "label": "From Email", "type": "connected_emails_selector_multiple", "required": true },
+      { "name": "fromEmail", "label": "From Email", "type": "connected_emails_selector_single", "required": true },
       { "name": "replyToEmail", "label": "Reply-To Email (optional)", "type": "text" },
       { "name": "trackOpens", "label": "Track email opens", "type": "boolean", "defaultValue": true },
       { "name": "trackClicks", "label": "Track link clicks", "type": "boolean", "defaultValue": true }
@@ -528,6 +528,8 @@ When a workflow sends emails, add an outreach profile input page to `context.inp
   }
 }
 ```
+
+Use `connected_emails_selector_multiple` for `fromEmail` only when the user explicitly asks for sender rotation. Single-mailbox outreach should use `connected_emails_selector_single`.
 
 ### 2. Composed Email Step
 

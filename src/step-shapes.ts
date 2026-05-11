@@ -169,7 +169,7 @@ const AI_ACTION_EMAIL: StepShape = {
         '`pipelineStepPrompt.type: "email"` is recommended for composed email steps, but the actual send trigger is `onApproval.action: "schedule-email"`.',
         'Always set `onApproval.action: "schedule-email"` for platform-sent approval emails — this is what triggers actual sending.',
         'Always set `next.conditions.approvalRequired: true` — blocks the workflow until the user reviews.',
-        'For outreach from a user-selected connected mailbox, add an `outreachProfile` input page to context.inputPages with fields: name, fromEmailLabel, fromEmail (type: connected_emails_selector_multiple), replyToEmail, trackOpens, trackClicks.',
+        'For outreach from a user-selected connected mailbox, add an `outreachProfile` input page to context.inputPages with fields: name, fromEmailLabel, fromEmail (type: connected_emails_selector_single), replyToEmail, trackOpens, trackClicks. Use connected_emails_selector_multiple only when the user asks for sender rotation.',
         'Open/click tracking only works for HTML email bodies (`bodyType: "html"`). Plain text emails cannot be tracked.',
         'For report notifications from the workspace assistant, no Gmail appAction is needed: compose a concise HTML notification and include `{{steps.<shareStepId>.shareUrl}}`.',
         'Email body must be email-safe HTML (<p>, <br>, <a>, <strong> — no CSS, no scripts).',
@@ -562,7 +562,7 @@ const INPUT_PAGE_STANDARD: StepShape = {
             fields: [
                 { name: 'name', label: 'Sender name', type: 'text', required: true },
                 { name: 'fromEmailLabel', label: 'From name', type: 'text', required: true },
-                { name: 'fromEmail', label: 'From email', type: 'connected_emails_selector_multiple', required: true },
+                { name: 'fromEmail', label: 'From email', type: 'connected_emails_selector_single', required: true },
                 { name: 'replyToEmail', label: 'Reply-To email (optional)', type: 'text' },
                 { name: 'trackOpens', label: 'Track email opens', type: 'boolean', defaultValue: true },
                 { name: 'trackClicks', label: 'Track link clicks', type: 'boolean', defaultValue: true },

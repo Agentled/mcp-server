@@ -108,7 +108,7 @@ agentled best-practices                             # summary + link to agentic-
 | A child workflow called via `call-workflow` | `05-child-workflow-contracts` (use `return`, not `milestone`) | — |
 | Multi-path routing by score / category / condition | `06-conditional-routing` (`entryConditions.criteria`, not `conditions`) | `extract-threshold-alert` |
 | Anything that can fail on upstream provider errors | `07-error-handling` (`failureHandling`, retries) | — |
-| **Outreach** — personalized email with user approval | `08-composed-email-approval` (`pipelineStepPrompt.type: "email"` + approval + `schedule-email`; add outreachProfile only for user-selected connected senders) | `list-match-email` |
+| **Outreach** — personalized email with user approval | `08-composed-email-approval` (approval + `onApproval.action: "schedule-email"`; add outreachProfile only for user-selected connected senders) | `list-match-email` |
 | **Report / dashboard** — structured output + sharing + KPI history | `09-reports-and-knowledge-storage` (Config renderer + share step + optional notification email with report URL) — see § Pattern A (scoringHeader + dimensionScores for any 0–100 scored output) and § Pattern B (funnel for orchestrator digests) | `lead-scoring-kg`, `extract-threshold-alert` |
 | **Scored AI output** (any step that produces a 0–100 score, decision, and per-dimension breakdown) | `09-reports-and-knowledge-storage` § Pattern A — `scoringHeader` + `dimensionScores` + rubric `table`, NOT a wall of `markdown` blocks | — |
 | **Orchestrator digest** (pipeline health, daily/weekly summary, batch report) | `09-reports-and-knowledge-storage` § Pattern B — `funnel` block with `stages: [{ label, valuePath, icon }]` for stage-by-stage attrition | — |
@@ -521,7 +521,9 @@ When a workflow sends emails, add an outreach profile input page to `context.inp
       { "name": "name", "label": "Sender Name", "type": "text", "required": true },
       { "name": "fromEmailLabel", "label": "From Name", "type": "text", "required": true },
       { "name": "fromEmail", "label": "From Email", "type": "connected_emails_selector_multiple", "required": true },
-      { "name": "replyToEmail", "label": "Reply-To Email (optional)", "type": "text" }
+      { "name": "replyToEmail", "label": "Reply-To Email (optional)", "type": "text" },
+      { "name": "trackOpens", "label": "Track email opens", "type": "boolean", "defaultValue": true },
+      { "name": "trackClicks", "label": "Track link clicks", "type": "boolean", "defaultValue": true }
     ]
   }
 }
@@ -576,13 +578,15 @@ When a workflow sends emails, add an outreach profile input page to `context.inp
 ### Key Requirements
 
 - Include `outreachProfile` input page when the user must choose a connected personal sender
-- `pipelineStepPrompt.type: "email"` — tells the system this is an email step
+- `pipelineStepPrompt.type: "email"` — recommended for composed email rendering, but not the only signal
 - `renderer.config.fromContextKey: "outreachProfile"` — links renderer to sender profile
 - `onApproval.action: "schedule-email"` — triggers the actual send; without it, approval does nothing
 - `next.conditions.approvalRequired: true` — blocks the pipeline until human approval
 - Email body must be email-safe HTML (`<p>`, `<br>`, `<a>`, `<strong>` — no CSS, no scripts)
+- Tracking controls are `trackOpens` and `trackClicks` on the sender/outreach profile; they only apply when the sent email has `bodyType: "html"`
 - **Never** use separate "draft" + "gmail send" appAction steps for outreach
 - For report notifications, create a share URL and include that URL in the email instead of copying the full report into the email body
+- Set an output page `displayConfig.executionNameTemplate` that names the entity and the outreach state. For single-entity outreach, use `{{entityName}} - Email Drafted` before approval and `{{entityName}} - Email Sent` or `{{entityName}} - Contacted` after the post-send status step, e.g. `Joe Dan - VC Firm Name - Email Drafted`; add `{{today}}` only when a short date helps. For batch runs, summarize counts instead, e.g. `26 May - 4 sourced - 3 contacted`.
 
 ## Top Apps Quick Reference
 

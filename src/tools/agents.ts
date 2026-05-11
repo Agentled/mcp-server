@@ -8,6 +8,32 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { ClientFactory } from '../server.js';
 
+async function resolveAgentIdForChat(
+    client: any,
+    input: { id?: string; agent_slug?: string },
+): Promise<string> {
+    if (input.id?.trim()) return input.id.trim();
+
+    const result = await client.listAgents({ status: 'active' });
+    const agents = Array.isArray(result?.agents) ? result.agents : [];
+    const target = input.agent_slug?.trim().toLowerCase() || 'assistant';
+    const match = agents.find((agent: any) =>
+        String(agent?.slug || '').toLowerCase() === target ||
+        String(agent?.id || '').toLowerCase() === target ||
+        String(agent?.id || '').toLowerCase().startsWith(`${target}@`)
+    );
+
+    if (!match?.id) {
+        throw new Error(
+            input.agent_slug
+                ? `No active agent found for slug "${input.agent_slug}". Use list_agents to choose one.`
+                : 'No active assistant agent found. Use list_agents and pass id or agent_slug.',
+        );
+    }
+
+    return match.id;
+}
+
 export function registerAgentTools(server: McpServer, clientFactory: ClientFactory) {
 
     server.tool(
@@ -300,17 +326,20 @@ Use 'set' with an empty array to clear all assigned workflows.`,
 
     server.tool(
         'chat_with_agent',
-        `Send a message to a specific agent. The agent's instructions are used as the system prompt.
+        `Send a message to an agent. Defaults to the active workspace assistant (assistant@...) when no id or agent_slug is provided.
+Use list_agents first when you want to choose a different agent. The agent's instructions are used as the system prompt.
 Supports multi-turn conversations via session_id.`,
         {
-            id: z.string().describe('Agent ID'),
+            id: z.string().optional().describe('Agent ID. If omitted, defaults to the active assistant@... agent.'),
+            agent_slug: z.string().optional().describe('Agent slug to chat with, e.g. assistant, pitch-night, lead-qualifier. Ignored when id is provided.'),
             message: z.string().describe('Message to send to the agent'),
             session_id: z.string().optional().describe('Session ID for multi-turn conversations'),
         },
-        async ({ id, message, session_id }, extra) => {
+        async ({ id, agent_slug, message, session_id }, extra) => {
             const client = clientFactory(extra);
             try {
-                const result = await client.chatWithAgent(id, message, session_id);
+                const resolvedAgentId = await resolveAgentIdForChat(client, { id, agent_slug });
+                const result = await client.chatWithAgent(resolvedAgentId, message, session_id);
 
                 if (result.error) {
                     return {
@@ -324,6 +353,7 @@ Supports multi-turn conversations via session_id.`,
 
                 const parts: string[] = [];
                 if (result.response) parts.push(result.response);
+                parts.push(`\n---\nagent_id: ${resolvedAgentId}`);
                 if (result.sessionId) parts.push(`\n---\nsession_id: ${result.sessionId}`);
 
                 return {

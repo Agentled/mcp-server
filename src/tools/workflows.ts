@@ -97,7 +97,7 @@ For app actions, call \`get_app_actions({ appId })\` for input/output schemas. F
 **Search & Extract**: \`aiAction (queries) → appAction (search) → aiAction (extract)\`
 ⚠️ NEVER pass raw user input (job titles, topics) directly to a search API — always generate optimized boolean/keyword queries first.
 **Enrich & Score**: \`appAction (fetch) → aiAction (score)\`
-**Draft & Send**: \`aiAction email (pipelineStepPrompt.type="email") → [approval + schedule-email]\`
+**Draft & Send**: \`aiAction email → approval + schedule-email\`. Use HTML bodies for open/click tracking.
 **Report & Notify**: \`aiAction report with Config renderer → share step → aiAction notification email with concise HTML overview + shareUrl\`
 **Loop Enrich & Filter**: \`loopConfig on first step → appAction (enrich) → aiAction (score)\`
 
@@ -357,7 +357,7 @@ Trigger step inputs are referenced as \`{{input.X}}\`, **not** \`{{steps.trigger
 When building multi-step workflows, apply these reusable patterns:
 - **Search & Extract**: aiAction (generate queries) → appAction (search) → aiAction (extract). Never pass raw input to search APIs.
 - **Enrich & Score**: appAction (fetch data) → aiAction (score). Always enrich before scoring.
-- **Draft & Send**: aiAction email (pipelineStepPrompt.type="email") → approval with onApproval.action="schedule-email". Do not use Gmail/Outlook send appActions unless explicitly requested.
+- **Draft & Send**: aiAction email → approval with onApproval.action="schedule-email". Use HTML bodies for open/click tracking. Do not use Gmail/Outlook send appActions unless explicitly requested.
 - **Report & Notify**: aiAction report with Config renderer → share step → aiAction notification email. Include \`{{steps.<shareStepId>.shareUrl}}\` in the email template and keep the body to an HTML overview + report link.
 - **Scrape & Summarize**: appAction (scrape) → aiAction (summarize).
 - **Loop Enrich & Filter**: loopConfig on first step only → appAction (enrich each) → aiAction (score/filter). Post-loop: aiAction to rank with \`entryConditions.criteria[{ type: "loop_completion" }]\` and \`onCriteriaFail: "wait"\`. Do not use \`scope\` as the runtime wait/fan-in mechanism; it only declares explicit container membership.

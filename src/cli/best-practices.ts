@@ -34,7 +34,7 @@ export function bestPracticesCommand(): void {
 
     writeln(`  ${c.bold}5. Email = composed aiAction, not provider send appAction${c.reset}`);
     writeln(`  ${c.dim}NEVER separate "draft" + "gmail send" appAction steps. The composed email${c.reset}`);
-    writeln(`  ${c.dim}step uses pipelineStepPrompt.type:"email", approval, and schedule-email.${c.reset}`);
+    writeln(`  ${c.dim}step uses approval and onApproval.action:"schedule-email"; HTML is required for tracking.${c.reset}`);
     writeln(`  ${c.dim}For report delivery: Config report → share URL → short HTML notification email.${c.reset}`);
     writeln(`  ${c.dim}Run: agentled schema --step-type aiAction --shape email${c.reset}`);
     writeln('');

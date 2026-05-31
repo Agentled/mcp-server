@@ -57,6 +57,8 @@ export function registerExecutionTools(server: McpServer, clientFactory: ClientF
         `Start a workflow execution. Optionally provide input data that maps to the workflow's input page fields.
 For example, if the workflow expects "company_url", pass: { input: { company_url: "https://..." } }
 
+Returns executionInputId for the submitted input/run record. It may also return executionId when the async PipelineExecution row is already available. Use only executionId with get_execution/list_timelines/get_timeline. If executionId is absent, call list_executions and match pipelineExecutionInputId to the returned executionInputId; the matching row's id is the executionId.
+
 Mock control: by default, steps that have mock data configured (\`step.mock.enabledByDefault\`) will return that mock data and consume zero credits. Pass \`useMocks: false\` to force a real run that ignores mocks for every step. Pass \`useMocks: true\` (or omit) to keep the workflow's default mock behavior.`,
         {
             workflowId: z.string().describe('The workflow ID to start'),
@@ -82,7 +84,7 @@ Mock control: by default, steps that have mock data configured (\`step.mock.enab
 
     server.tool(
         'list_executions',
-        'List recent executions for a workflow. Returns execution id, status, timestamps.',
+        'List recent executions for a workflow. Returns execution id, pipelineExecutionInputId, status, timestamps. Use pipelineExecutionInputId to match an executionInputId returned by start_workflow when executionId was not available yet.',
         {
             workflowId: z.string().describe('The workflow ID'),
             status: z.string().optional().describe('Filter: running, completed, failed'),
@@ -106,7 +108,9 @@ Mock control: by default, steps that have mock data configured (\`step.mock.enab
         'get_execution',
         `Get full execution details including results from each completed step.
 The executionContent field maps stepId -> step output data.
-Use this to inspect what a workflow produced, debug failures, or check intermediate results.`,
+Use this to inspect what a workflow produced, debug failures, or check intermediate results.
+
+executionId must be the PipelineExecution id, not executionInputId. If start_workflow returned only executionInputId, first call list_executions and match pipelineExecutionInputId to find the execution id.`,
         {
             workflowId: z.string().describe('The workflow ID'),
             executionId: z.string().describe('The execution ID'),
@@ -125,7 +129,9 @@ Use this to inspect what a workflow produced, debug failures, or check intermedi
 
     server.tool(
         'list_timelines',
-        `List timelines (step execution records) for a specific execution. Each timeline represents a step that ran, with its status, output, and metadata. Use this to inspect individual step results, debug failures, or see the execution flow.`,
+        `List timelines (step execution records) for a specific execution. Each timeline represents a step that ran, with its status, output, and metadata. Use this to inspect individual step results, debug failures, or see the execution flow.
+
+To debug the actual prompt used for a step in an execution, find that step's timeline here, then call get_timeline and inspect metadata.computedPrompt. get_step only shows the configured prompt template, not the resolved execution prompt.`,
         {
             workflowId: z.string().describe('The workflow ID'),
             executionId: z.string().describe('The execution ID'),
@@ -147,7 +153,9 @@ Use this to inspect what a workflow produced, debug failures, or check intermedi
 
     server.tool(
         'get_timeline',
-        `Get a single timeline (step execution record) by ID. Returns the full timeline including eventContent (step output), status, metadata, and context. Use this to inspect a specific step's result in detail.`,
+        `Get a single timeline (step execution record) by ID. Returns the full timeline including eventContent (step output), status, metadata, and context. Use this to inspect a specific step's result in detail.
+
+To debug the actual prompt used for this step invocation, inspect metadata.computedPrompt. get_step only shows the configured prompt template, not the resolved execution prompt.`,
         {
             workflowId: z.string().describe('The workflow ID'),
             executionId: z.string().describe('The execution ID'),

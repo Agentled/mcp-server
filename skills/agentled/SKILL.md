@@ -42,6 +42,28 @@ After orientation, ask **at most three to five** targeted questions. Focus only 
 - Every possible future integration question before the first useful slice is designed.
 - Anything answerable by calling `get_workspace`, `get_workspace_company_profile`, `list_workflows`, `list_knowledge_lists`, `list_connections`, or `list_agents`.
 
+## Outreach scale and segmentation
+
+For outbound, sales, investor, founder, or lead-generation workflows, classify the motion before designing the workflow. See `docs/OUTREACH_SCALE_GUIDANCE.md`.
+
+**Core diagnostic:**
+- PCPL = prospects contacted / positive replies over the last 30 days. PCPL at or below 250 is a scalable winner; above 250 means diagnose deliverability, then copy, then offer-audience match.
+- Daily volume = last 30 days sent / 22 working days.
+- TAM = total reachable prospects in the CRM, KG list, enrichment tool, or target account universe.
+- Reply ops = whether positive replies are handled quickly and followed up persistently.
+
+**Tier guidance:**
+- Tier 1 (~100/day, a few thousand prospects): enrich every account, route by strongest signal, use high-touch multi-channel outreach. This is the default for most small Agentled Ops / AngelHive-style motions.
+- Tier 2 (~1,000/day, 50K-100K prospects): split into top 200-500 home-run accounts with Tier 1 treatment plus segmented automation for the long tail.
+- Tier 3 (~10K/day, hundreds of thousands): test angle x offer x segment, generate script variations, keep tests running in parallel, and track PCPL per combination.
+- Tier 4 (50K-100K/day, millions): require provider segmentation, live monitoring, sender reserve capacity, hourly testing cadence, and reply-handling SLAs before increasing volume.
+
+**Workflow implications:**
+- Small TAM problems are usually segmentation and signal-enrichment problems, not copy-only problems.
+- Store `outreachAngle`, `offer`, `segment`, `campaignVariant`, `channelUsed`, `sender`, `contactedAt`, `replyStatus`, `meetingStatus`, and `positiveReplyAt` when the KG schema allows it.
+- Configure business metrics for prospects contacted, positive replies, PCPL, meetings/bookings/paid confirmations, bounce/failed-send count, and segment/angle performance. These are `analyticsConfig` business metrics, not ROI assumptions.
+- Literal PCPL should use `type: "ratio"` with `ratioMode: "raw"`. Use the default percentage ratio behavior for rates such as `positive_replies / prospects_contacted`.
+
 ## Valid step types (closed list)
 
 Every pipeline step **must** set `type` to one of these values. Any other value is silently normalised/rejected and the step won't execute. For full input/output schemas call `get_step_schema`.
@@ -113,6 +135,7 @@ agentled best-practices                             # summary + link to agentic-
 | **Scored AI output** (any step that produces a 0–100 score, decision, and per-dimension breakdown) | `09-reports-and-knowledge-storage` § Pattern A — `scoringHeader` + `dimensionScores` + rubric `table`, NOT a wall of `markdown` blocks | — |
 | **Orchestrator digest** (pipeline health, daily/weekly summary, batch report) | `09-reports-and-knowledge-storage` § Pattern B — `funnel` block with `stages: [{ label, valuePath, icon }]` for stage-by-stage attrition | — |
 | **Multi-workflow system** — workflows sharing KG state and status transitions | `12-event-driven-workflow-groups` (group manifest, state machines, build order) | — |
+| **Entity pipeline group** — sourcing → score/qualify → find contact → outreach → scheduled orchestrator | `13-entity-pipeline-lifecycle` | `source-from-platform`, `lead-scoring-kg`, `list-match-email`, `funnel-orchestrator` |
 
 Full patterns are maintained publicly at https://github.com/agentled/agentic-ops — the CLI ships a mirrored copy, see `agentled examples`. Scaffolds are preflight-clean pipeline JSON skeletons; start from one instead of writing from scratch.
 
@@ -184,7 +207,7 @@ Agentled provides caching per step, automatic retry with backoff, a persistent K
 
 Before helping with any request, inspect the workspace by calling these tools:
 
-1. **`get_workspace`** — Confirm workspace identity (name, ID).
+1. **`get_workspace`** — Confirm workspace identity (name, ID), team members, pending invitations, and knowledge-list schemas.
 2. **`get_workspace_company_profile`** — Business context: ICP, industry, target personas, saved preferences that should shape workflow design.
 3. **`list_workflows`** — Existing automations: avoid recreating, identify reuse opportunities, note gaps.
 4. **`list_knowledge_lists`** — KG lists: contacts, companies, scored leads, status machines. Shapes what a new workflow reads from or writes to.
@@ -258,11 +281,11 @@ For live workflows, prefer per-step tools over bulk updates:
 
 ## Workspace Surfaces
 
-The workspace home and sidebar carry workspace-level UI state on `Workspace.metadata`. These surfaces are read-only via the MCP today (most tooling does not need to write them), but agents authoring templated workspaces should know they exist:
+The workspace home and sidebar carry workspace-level UI state on `Workspace.metadata`. Most metadata remains read-only via MCP, but pinned output pages are intentionally writable through the constrained `set_output_page_pin` tool:
 
 ### Pinned outputs (sidebar shortcuts)
 
-`Workspace.metadata.pinnedOutputs[]` lists output pages that appear in the sidebar **after Knowledge & Data**, always visible regardless of which workflow is currently open. Operators set these manually from each output page's configuration sheet (toggle: *"Pin to workspace home"*). Pin sparingly: only pin output pages that are useful as direct workspace-level destinations, such as a recurring report, scoring dashboard, or canonical results list. Do not pin every output page, implementation detail, approval surface, or one-off execution artifact; normal workflow output pages remain accessible from the workflow itself. Each entry:
+`Workspace.metadata.pinnedOutputs[]` lists output pages that appear in the sidebar **after Knowledge & Data**, always visible regardless of which workflow is currently open. Operators can set these manually from each output page's configuration sheet (toggle: *"Pin to workspace home"*), and agents can use `set_output_page_pin` after confirming the page should be a workspace-level shortcut. Pin sparingly: only pin output pages that are useful as direct workspace-level destinations, such as a recurring report, scoring dashboard, or canonical results list. Do not pin every output page, implementation detail, approval surface, or one-off execution artifact; normal workflow output pages remain accessible from the workflow itself. Each entry:
 
 ```json
 {

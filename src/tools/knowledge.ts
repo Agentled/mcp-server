@@ -14,8 +14,8 @@ export function registerKnowledgeTools(server: McpServer, clientFactory: ClientF
 
     server.tool(
         'get_workspace',
-        `Get workspace company info and knowledge schema overview.
-Returns company details and a summary of all knowledge lists with their field definitions and row counts.
+        `Get workspace company info, team visibility, and knowledge schema overview.
+Returns company details, active team members, pending team invitations, and a summary of all knowledge lists with their field definitions and row counts.
 Use this as a first call to understand what data the workspace has.`,
         {},
         async (_args, extra) => {
@@ -73,6 +73,48 @@ Products and services live in the company.products knowledge text, not in this s
 
             const client = clientFactory(extra);
             const result = await client.updateWorkspaceCompanyProfile(company);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
+        'list_pinned_outputs',
+        `List output pages currently pinned to the workspace home/sidebar.
+Pinned outputs are workspace-level shortcuts to workflow output pages, stored on Workspace.metadata.pinnedOutputs.
+Use this before changing pins so you can avoid duplicating or removing the wrong shortcut.`,
+        {},
+        async (_args, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.listPinnedOutputs();
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
+        'set_output_page_pin',
+        `Pin or unpin a workflow output page on the workspace home/sidebar.
+The API validates that the workflow belongs to this workspace and that the output page pathname exists on the workflow.
+Pin sparingly: only use workspace-level pins for recurring reports, dashboards, canonical results lists, or other pages users should reach directly from the workspace home/sidebar.`,
+        {
+            workflowId: z.string().describe('Workflow ID that owns the output page.'),
+            outputPagePathname: z.string().describe('Output page pathname/slug, for example "weekly-report".'),
+            pinned: z.boolean().describe('true to pin the output page, false to unpin it.'),
+            label: z.string().optional().describe('Optional custom sidebar label. Defaults to the output page title.'),
+            iconName: z.string().optional().describe('Optional lucide icon name. Defaults to the output page iconName.'),
+        },
+        async (args, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.setOutputPagePin(args);
             return {
                 content: [{
                     type: 'text' as const,

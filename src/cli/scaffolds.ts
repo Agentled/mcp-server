@@ -68,6 +68,30 @@ const SCAFFOLDS: ScaffoldMeta[] = [
         pattern: 'Entity Pipeline Pattern (Workflow A — sourcing)',
         file: 'source-from-platform.json',
     },
+    {
+        name: 'mentor-matching-kg',
+        description: 'Startup intake → read mentor KG list → rank matches → queue outreach → share report',
+        pattern: 'Inovexus mentor matching + 08-composed-email-approval + 09-reports-and-knowledge-storage',
+        file: 'mentor-matching-kg.json',
+    },
+    {
+        name: 'startup-sourcing-channel',
+        description: 'Scheduled source-channel search → normalize candidates → dedupe/upsert status=sourced',
+        pattern: 'Inovexus/AngelHive multi-channel sourcing',
+        file: 'startup-sourcing-channel.json',
+    },
+    {
+        name: 'founder-intake-review',
+        description: 'Founder submission → enrichment/review child workflow → report link → approval-gated email',
+        pattern: 'AngelHive Founder Pitch Review',
+        file: 'founder-intake-review.json',
+    },
+    {
+        name: 'funnel-orchestrator',
+        description: 'Scheduled KG funnel → loop child scoring → queue outreach → KPI digest + share link',
+        pattern: '13-entity-pipeline-lifecycle + AngelHive Weekly Pitch Night Pipeline',
+        file: 'funnel-orchestrator.json',
+    },
 ];
 
 // ---------------------------------------------------------------------------
@@ -121,6 +145,9 @@ export function scaffoldListCommand(json: boolean): void {
 
     writeln(`  ${c.bold}Usage:${c.reset}`);
     writeln(`  ${c.dim}agentled workflows scaffold lead-scoring-kg --out pipeline.json${c.reset}`);
+    writeln(`  ${c.dim}agentled workflows scaffold mentor-matching-kg --out pipeline.json${c.reset}`);
+    writeln(`  ${c.dim}agentled workflows scaffold funnel-orchestrator --out pipeline.json${c.reset}`);
+    writeln(`  ${c.dim}agentled examples 13-entity-pipeline-lifecycle${c.reset}`);
     writeln(`  ${c.dim}agentled workflows scaffold ai-with-tools${c.reset}  # print to stdout`);
     writeln('');
 }

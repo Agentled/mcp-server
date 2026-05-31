@@ -535,6 +535,8 @@ When a draft exists, the response carries a \`draft\` summary: \`{ exists, draft
         'get_step',
         `Read a single step from a workflow by step ID. Cheap alternative to \`get_workflow\` (typically ~1KB vs 50-200KB for a full workflow).
 
+This returns the configured step definition only. To debug the actual prompt used in a specific execution, use \`list_timelines\` then \`get_timeline\` for that step invocation and inspect \`metadata.computedPrompt\`.
+
 **Use this before editing dictionary-shaped fields** (\`stepInputData.fieldUpdates\`, \`responseStructure\`, \`knowledgeSync.fieldMapping\`, \`agent.workers\`) so you can fetch the current value, modify it locally, and send the full new object back via \`update_step\` with \`replace: ["<path>"]\`. Avoids the "patched one key, silently wiped the others" trap.
 
 ## Source resolution

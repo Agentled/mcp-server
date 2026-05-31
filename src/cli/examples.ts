@@ -1,5 +1,5 @@
 /**
- * `agentled examples [<pattern>]` — list or print agentic-ops patterns.
+ * `agentled examples [<pattern>]` — list or print bundled workflow patterns.
  *
  * examples             list all available patterns
  * examples <pattern>   print the full pattern markdown
@@ -21,6 +21,7 @@ interface PatternMeta {
     file: string;
     title: string;
     description: string;
+    source?: 'agentic-ops' | 'cli';
 }
 
 const PATTERNS: PatternMeta[] = [
@@ -36,6 +37,8 @@ const PATTERNS: PatternMeta[] = [
     { id: '09-reports-and-knowledge-storage', file: '09-reports-and-knowledge-storage.md', title: 'Reports + Knowledge Storage', description: 'Config renderer, share URL, notification email, KPI history' },
     { id: '10-person-research-ladder', file: '10-person-research-ladder.md', title: 'Person Research Ladder', description: 'LinkedIn → email → enrichment → scoring for people' },
     { id: '11-company-research-ladder', file: '11-company-research-ladder.md', title: 'Company Research Ladder', description: 'LinkedIn → Crunchbase → Specter → scoring for companies' },
+    { id: '12-event-driven-workflow-groups', file: '12-event-driven-workflow-groups.md', title: 'Event-Driven Workflow Groups', description: 'Multi-workflow systems connected through KG status transitions' },
+    { id: '13-entity-pipeline-lifecycle', file: '13-entity-pipeline-lifecycle.md', title: 'Entity Pipeline Lifecycle', description: 'Sourcing → scoring → contact discovery → outreach → scheduled orchestrator', source: 'cli' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -76,7 +79,7 @@ export function examplesListCommand(json: boolean): void {
     }
 
     writeln('');
-    info('Agentic-ops workflow patterns (use `agentled examples <id>` to print):');
+    info('Bundled workflow patterns (use `agentled examples <id>` to print):');
     writeln('');
 
     const idW = Math.max(...PATTERNS.map((p) => p.id.length));
@@ -85,7 +88,8 @@ export function examplesListCommand(json: boolean): void {
     }
 
     writeln('');
-    writeln(`  ${c.bold}Full patterns:${c.reset} https://github.com/agentled/agentic-ops`);
+    writeln(`  ${c.bold}Public agnostic patterns:${c.reset} https://github.com/agentled/agentic-ops`);
+    writeln(`  ${c.bold}CLI-only patterns:${c.reset} bundled locally with the Agentled CLI`);
     writeln('');
     writeln(`  ${c.bold}Example:${c.reset}`);
     writeln(`  ${c.dim}agentled examples trigger-design${c.reset}`);
@@ -123,7 +127,11 @@ export function examplesShowCommand(patternArg: string, json: boolean): void {
         writeln('');
         warn(`Pattern file not found locally: ${meta.file}`);
         writeln('');
-        writeln(`  View it online: https://github.com/agentled/agentic-ops/blob/main/patterns/v1/${meta.file}`);
+        if (meta.source === 'cli') {
+            writeln(`  This is a CLI-only pattern bundled with the Agentled CLI: ${meta.file}`);
+        } else {
+            writeln(`  View it online: https://github.com/agentled/agentic-ops/blob/main/patterns/v1/${meta.file}`);
+        }
         writeln('');
         process.exit(1);
     }

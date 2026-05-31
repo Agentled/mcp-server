@@ -240,6 +240,7 @@ describe('examples command', () => {
         const out = stripAnsi(stdout);
         assert.ok(out.includes('trigger-design') || out.includes('01-trigger-design'), 'should list trigger-design pattern');
         assert.ok(out.includes('loop-patterns') || out.includes('04-loop-patterns'), 'should list loop-patterns');
+        assert.ok(out.includes('13-entity-pipeline-lifecycle'), 'should list entity pipeline lifecycle');
     });
 
     it('--json emits valid JSON array', async () => {
@@ -264,6 +265,15 @@ describe('examples command', () => {
             'should either show content or point to URL',
         );
     });
+
+    it('shows entity pipeline lifecycle content', async () => {
+        const { stdout, exitCode } = await runCli(['examples', '13-entity-pipeline-lifecycle']);
+        assert.equal(exitCode, 0);
+        const out = stripAnsi(stdout);
+        assert.ok(out.includes('sourcing'), 'should include sourcing stage');
+        assert.ok(out.includes('Score / Qualify'), 'should include scoring stage');
+        assert.ok(out.includes('funnel-orchestrator'), 'should point to orchestrator scaffold');
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -278,6 +288,11 @@ describe('workflows scaffold command', () => {
         assert.ok(out.includes('lead-scoring-kg'), 'should list lead-scoring-kg');
         assert.ok(out.includes('ai-with-tools'), 'should list ai-with-tools');
         assert.ok(out.includes('email-polling-dedup'), 'should list email-polling-dedup');
+        assert.ok(out.includes('mentor-matching-kg'), 'should list mentor-matching-kg');
+        assert.ok(out.includes('startup-sourcing-channel'), 'should list startup-sourcing-channel');
+        assert.ok(out.includes('founder-intake-review'), 'should list founder-intake-review');
+        assert.ok(out.includes('funnel-orchestrator'), 'should list funnel-orchestrator');
+        assert.ok(out.includes('13-entity-pipeline-lifecycle'), 'should point to entity pipeline lifecycle');
     });
 
     it('scaffold --list --json emits valid JSON', async () => {
@@ -287,6 +302,10 @@ describe('workflows scaffold command', () => {
         assert.ok(Array.isArray(parsed), 'should be array');
         const names = parsed.map((s: { name: string }) => s.name);
         assert.ok(names.includes('lead-scoring-kg'), 'should include lead-scoring-kg');
+        assert.ok(names.includes('mentor-matching-kg'), 'should include mentor-matching-kg');
+        assert.ok(names.includes('startup-sourcing-channel'), 'should include startup-sourcing-channel');
+        assert.ok(names.includes('founder-intake-review'), 'should include founder-intake-review');
+        assert.ok(names.includes('funnel-orchestrator'), 'should include funnel-orchestrator');
     });
 
     it('scaffold lead-scoring-kg prints valid JSON to stdout', async () => {
@@ -305,6 +324,19 @@ describe('workflows scaffold command', () => {
         const aiStep = parsed.steps?.find((s: { type: string }) => s.type === 'aiActionWithTools');
         assert.ok(aiStep, 'should have an aiActionWithTools step');
         assert.ok(Array.isArray(aiStep.tools) && aiStep.tools.length > 0, 'tools array should be non-empty');
+    });
+
+    it('new customer-derived scaffolds print valid pipeline JSON', async () => {
+        for (const name of ['mentor-matching-kg', 'startup-sourcing-channel', 'founder-intake-review', 'funnel-orchestrator']) {
+            const { stdout, exitCode } = await runCli(['workflows', 'scaffold', name]);
+            assert.equal(exitCode, 0, `${name} should exit 0`);
+            const parsed = JSON.parse(stdout);
+            assert.ok(parsed.name, `${name} should have name`);
+            assert.ok(Array.isArray(parsed.steps), `${name} should have steps`);
+            assert.ok(parsed.steps.some((s: { type: string }) => s.type === 'trigger'), `${name} should have trigger`);
+            assert.ok(parsed.steps.some((s: { type: string }) => s.type === 'milestone'), `${name} should have milestone`);
+            assert.ok(!JSON.stringify(parsed).includes('_scaffold'), `${name} should strip private fields`);
+        }
     });
 
     it('scaffold exits 1 for unknown scaffold name', async () => {

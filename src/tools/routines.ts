@@ -13,6 +13,7 @@ const INTERVAL_VALUES = [
     'weekday-morning',
     'weekday-evening',
     'weekly-monday',
+    'weekly-tuesday-evening',
     'weekly-friday-evening',
     'daily',
     '2h',
@@ -49,7 +50,8 @@ Pass the agent's slug (e.g. "dealflow") or ID as \`agent_id\`.`,
 
 Interval values:
   By schedule: weekday-morning (Mon–Fri 08:00 UTC), weekday-evening (Mon–Fri 18:00 UTC),
-               weekly-monday (Mon 08:00 UTC), weekly-friday-evening (Fri 18:00 UTC),
+               weekly-monday (Mon 08:00 UTC), weekly-tuesday-evening (Tue 18:00 UTC),
+               weekly-friday-evening (Fri 18:00 UTC),
                daily (every day 08:00 UTC)
   By interval: 2h, 6h, 48h
 

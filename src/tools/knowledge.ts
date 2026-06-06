@@ -83,6 +83,28 @@ Products and services live in the company.products knowledge text, not in this s
     );
 
     server.tool(
+        'update_workspace_executive_summary',
+        `Write the workspace-wide executive summary shown on the Workspace Assistant card.
+Uses the same summary signature as cluster executive summaries: body, optional bullets, and optional author.
+The API writes only Workspace.metadata.executiveSummary and preserves other workspace metadata keys.`,
+        {
+            body: z.string().describe('One non-empty workspace executive-summary paragraph.'),
+            bullets: z.array(z.string()).max(5).optional().describe('Optional concise bullets. Empty strings are ignored by the API.'),
+            author: z.string().optional().describe('Optional author label, e.g. "by Workspace Assistant".'),
+        },
+        async (args, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.updateWorkspaceExecutiveSummary(args);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
         'list_pinned_outputs',
         `List output pages currently pinned to the workspace home/sidebar.
 Pinned outputs are workspace-level shortcuts to workflow output pages, stored on Workspace.metadata.pinnedOutputs.

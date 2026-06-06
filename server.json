@@ -6,12 +6,12 @@
     "url": "https://github.com/Agentled/mcp-server",
     "source": "github"
   },
-  "version": "0.15.23",
+  "version": "0.16.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@agentled/mcp-server",
-      "version": "0.15.23",
+      "version": "0.16.0",
       "transport": {
         "type": "stdio"
       },

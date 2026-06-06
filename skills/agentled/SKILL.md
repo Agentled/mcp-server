@@ -281,7 +281,7 @@ For live workflows, prefer per-step tools over bulk updates:
 
 ## Workspace Surfaces
 
-The workspace home and sidebar carry workspace-level UI state on `Workspace.metadata`. Most metadata remains read-only via MCP, but pinned output pages are intentionally writable through the constrained `set_output_page_pin` tool:
+The workspace home and sidebar carry workspace-level UI state on `Workspace.metadata`. Most metadata remains read-only via MCP, but pinned output pages and the workspace executive summary are intentionally writable through constrained tools:
 
 ### Pinned outputs (sidebar shortcuts)
 
@@ -324,7 +324,11 @@ Each workflow card (cluster) on the home page renders a per-cluster summary bloc
 }
 ```
 
-This field is intended to be written by an agent routine that has access to the cluster's KG list and recent executions. The home page renders nothing when no pipeline in the cluster has a summary — there is no fallback narrative.
+This field is written by the weekly `cluster-summary` system routine. The routine reads the last 7 days of executions for the agent's assigned workflows and writes to the cluster owner pipeline: the `workflowGraph.role === "orchestrator"` pipeline, or the lowest-`order` pipeline when no orchestrator is present. Routine writes must use the narrow `update_pipeline_executive_summary({ pipelineId, body, bullets?, author? })` tool, which is scoped to `cluster-summary`, updates only `pipeline.metadata.executiveSummary`, and refuses cross-workspace targets. When there are no executions to summarize, the routine outputs `Nothing to summarize this week.` and does not write. The home page renders nothing when no pipeline in the cluster has a summary — there is no fallback narrative.
+
+### Workspace executive summary
+
+The workspace-wide narrative is stored at `Workspace.metadata.executiveSummary` with the same shape (`body`, optional `bullets`, `generatedAt`, optional `author`). It is written by the weekly `workspace-summary` routine on the chat-only workspace assistant. That routine follows the bottom-up rule: it reads per-cluster `executiveSummary` fields (capped at 200 pipelines with a truncation flag) and writes a workspace rollup through `update_workspace_executive_summary({ body, bullets?, author? })`; it must not stitch directly from workflow executions or workflow-level data. The write tool is also exposed through MCP for explicit operator/agent updates. It patches only the `executiveSummary` key through a safe metadata merge so other workspace metadata keys survive, and the API sets `generatedAt` server-side.
 
 ## Workspace Awareness
 
@@ -403,7 +407,7 @@ AI steps can optionally specify a model and provider via the `agent` field:
 {
   "id": "analyze",
   "type": "aiAction",
-  "agent": { "model": "claude-4-6-sonnet", "provider": "anthropic" },
+  "agent": { "model": "claude-4-8-opus", "provider": "anthropic" },
   "pipelineStepPrompt": { "template": "...", "responseStructure": {} },
   "creditCost": 10,
   "next": { "stepId": "next-step" }
@@ -417,7 +421,7 @@ AI steps can optionally specify a model and provider via the `agent` field:
 | Provider | Models |
 |----------|--------|
 | `openai` | `gpt-5-nano`, `gpt-5-mini`, `gpt-5.4`, `o4-mini`, `o3`, `o3-pro`, `o3-deep-research` |
-| `anthropic` | `claude-4-6-sonnet`, `claude-4-5-haiku`, `claude-4-6-opus` |
+| `anthropic` | `claude-4-6-sonnet`, `claude-4-5-haiku`, `claude-4-8-opus` |
 | `google` | `gemini-3-pro`, `gemini-3-flash`, `gemini-2.5-pro`, `gemini-2.5-flash` |
 | `mistral` | `mistral-large-latest`, `mistral-small-latest`, `codestral-latest` |
 | `deepseek` | `deepseek-chat`, `deepseek-reasoner` |
@@ -427,7 +431,7 @@ AI steps can optionally specify a model and provider via the `agent` field:
 | `perplexity` | `sonar-pro`, `sonar`, `sonar-reasoning-pro`, `sonar-reasoning` |
 | `xai` | `grok-4.3`, `grok-3-mini` |
 
-> **Tip:** Use `list_models` to get the full up-to-date list of supported model IDs. Use the internal model IDs (e.g., `claude-4-6-sonnet`), NOT the raw API model IDs (e.g., `claude-sonnet-4-6`). Using unsupported model IDs will result in a validation error.
+> **Tip:** Use `list_models` to get the full up-to-date list of supported model IDs. Use the internal model IDs (e.g., `claude-4-8-opus`), NOT the raw API model IDs (e.g., `claude-opus-4-8`). Using unsupported model IDs will result in a validation error.
 
 ### Code Step
 ```json

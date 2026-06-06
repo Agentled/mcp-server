@@ -87,10 +87,14 @@ Key fields:
   'customer-support', 'content-marketer', 'lead-qualifier', 'deal-sourcer', 'custom' (default)
 - instructions: System prompt / core AGENTS.md content
 - enabledApps: App IDs this agent can use — get IDs from list_apps (e.g. ['web-scraping', 'kg', 'gmail'])
+- appPermissions: Optional per-app permissions keyed by app ID. Use { access: 'read' } for read-only or { access: 'write', writeApprovalRequired: true } for mutating access with approval.
+  Read access is implicit and never requires approval. The internal 'agentled' app is not configurable here.
 - assignedWorkflowIds: Workflow IDs this agent can trigger — get IDs from list_workflows
 - goals: Natural-language description of what the agent should achieve
 - configFiles: Override generated config files — keys are 'SOUL.md' (persona), 'TOOLS.md' (tool routing).
   If omitted, files are auto-generated from agentType template.
+  Reflection context files ('JOURNAL.md', 'OBJECTIVES.md', 'PEOPLE.md') are linked AgentFiles, not configFiles.
+  Active chat-only agents with reflection routines auto-seed placeholders for those files.
 - avatar_icon_name: Lucide icon name for the agent avatar (e.g. 'Bot', 'Radar', 'Target', 'Sparkles')
 - avatar_color: Hex color for the avatar (e.g. '#6366f1', '#7C3AED', '#EA580C')
 - linkedFileIds: Workspace-level AgentFile IDs to attach as knowledge (from list_agent_files — workspace scope)
@@ -114,6 +118,10 @@ To add scheduled routines after creating the agent, use create_routine.`,
             ]).optional().describe('Preset agent type template (default: custom)'),
             enabledApps: z.array(z.string()).optional().describe("App IDs the agent can use (e.g. ['web-scraping', 'kg', 'gmail'])"),
             enabledActions: z.array(z.string()).optional().describe('Specific action IDs to enable (fine-grained control within apps)'),
+            appPermissions: z.record(z.string(), z.object({
+                access: z.enum(['read', 'write']).describe('read exposes read-only actions; write also exposes mutating actions'),
+                writeApprovalRequired: z.boolean().optional().describe('Only applies to write access. Defaults to true.'),
+            })).optional().describe("Per-app permissions keyed by app ID, e.g. { linkedin: { access: 'read' }, gmail: { access: 'write', writeApprovalRequired: true } }"),
             assignedWorkflowIds: z.array(z.string()).optional().describe('Workflow IDs this agent can trigger'),
             linkedFileIds: z.array(z.string()).optional().describe('Workspace AgentFile IDs to attach as knowledge'),
             chatModel: z.string().optional().describe("Chat model override (e.g. 'anthropic:claude-4-6-sonnet', 'openai:gpt-4o-mini')"),
@@ -131,7 +139,7 @@ To add scheduled routines after creating the agent, use create_routine.`,
         },
         async ({
             name, description, instructions, agentType,
-            enabledApps, enabledActions, assignedWorkflowIds, linkedFileIds, chatModel,
+            enabledApps, enabledActions, appPermissions, assignedWorkflowIds, linkedFileIds, chatModel,
             goals, configFiles,
             avatar_icon_name, avatar_color,
             activate, status, modelTier, maxCreditsPerDay,
@@ -139,7 +147,7 @@ To add scheduled routines after creating the agent, use create_routine.`,
             const client = clientFactory(extra);
             const result = await client.createAgent({
                 name, description, instructions, agentType,
-                enabledApps, enabledActions, assignedWorkflowIds, linkedFileIds, chatModel,
+                enabledApps, enabledActions, appPermissions, assignedWorkflowIds, linkedFileIds, chatModel,
                 goals, configFiles,
                 iconName: avatar_icon_name,
                 iconColor: avatar_color,
@@ -162,7 +170,7 @@ To add scheduled routines after creating the agent, use create_routine.`,
 
 \`update_agent\` accepts three independent operations on the same call. At least one must be non-empty.
 
-- **\`updates\`** — partial agent patch. Top-level fields (\`name\`, \`description\`, \`instructions\`, \`status\`, \`goals\`, \`chatModel\`, \`enabledApps\`, etc.) are shallow-replaced. Nested objects (\`configFiles\`, \`avatar\`) are deep-merged ONE LEVEL — keys you don't mention are preserved. Arrays (\`enabledApps\`, \`enabledActions\`, \`assignedWorkflowIds\`, \`linkedFileIds\`) are replaced wholesale.
+- **\`updates\`** — partial agent patch. Top-level fields (\`name\`, \`description\`, \`instructions\`, \`status\`, \`goals\`, \`chatModel\`, \`enabledApps\`, etc.) are shallow-replaced. Nested objects (\`configFiles\`, \`avatar\`, \`appPermissions\`) are deep-merged ONE LEVEL — keys you don't mention are preserved. Arrays (\`enabledApps\`, \`enabledActions\`, \`assignedWorkflowIds\`, \`linkedFileIds\`) are replaced wholesale.
 - **\`replace: string[]\`** — dot-paths whose values from \`updates\` are assigned WHOLESALE, skipping deep-merge. Use this when you genuinely want to wipe a dictionary (e.g. \`replace: ["configFiles"]\` swaps the whole configFiles dict instead of merging key-by-key).
 - **\`unset: string[]\`** — dot-paths to DELETE (e.g. \`["goals"]\`, \`["configFiles.SOUL.md"]\`). Each must currently exist on the agent.
 - **\`null\` in updates** — shortcut for unset (e.g. \`updates: { goals: null }\`).
@@ -176,6 +184,8 @@ To add scheduled routines after creating the agent, use create_routine.`,
 | Rename agent slug/email address | \`updates: { slug: "pitchnight" }\` |
 | Assign workflows (full replace) | \`updates: { assignedWorkflowIds: ["wf-1", "wf-2"] }\` |
 | Add to assigned workflows | fetch via \`get_agent\`, modify locally, send full new array (or use \`manage_agent_workflows\`) |
+| Allow an app to write with approval | \`updates: { enabledApps: ["linkedin"], appPermissions: { linkedin: { access: "write", writeApprovalRequired: true } } }\` |
+| Keep an app read-only | \`updates: { enabledApps: ["linkedin"], appPermissions: { linkedin: { access: "read" } } }\` |
 | Change avatar color only | \`updates: { avatar: { color: "#7C3AED" } }\` (iconName preserved) |
 | Activate (fail-fast on missing fields) | \`updates: { status: "active" }\` |
 | Deactivate / pause | \`updates: { status: "paused" }\` or \`updates: { status: "draft" }\` |
@@ -200,6 +210,7 @@ For scheduled / autonomous behaviour, attach routines via \`create_routine\` AFT
 
 - Cannot change \`agent.id\` (immutable, 400)
 - Changing \`agent.slug\` moves the AgentEntity to a new \`{slug}@{workspace}\` id, rebinds routines/file links/channel sessions/chat sessions where available, and updates the agent email address derived from the slug.
+- Slug convention: \`slug\` is the short role ID used in URLs/email. Keep "Agent" in the display name when useful, but do not append \`-agent\` to the slug just because the display name includes it; e.g. \`Deal Sourcing Agent\` should use \`deal-sourcing\`, not \`deal-sourcing-agent\`.
 - Cannot create new agents (use \`create_agent\`)
 - Cannot delete agents (use \`delete_agent\`)
 - Does not edit routines (use \`update_routine\` / \`create_routine\` / \`pause_routine\`)
@@ -435,6 +446,37 @@ reference documents, knowledge bases, or configuration data.
                 content,
                 mimeType: mime_type,
                 role,
+            });
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
+        'update_agent_file',
+        `Update a file that is already attached to an agent.
+
+Use this for durable reflection context such as JOURNAL.md, OBJECTIVES.md, and PEOPLE.md:
+read the current file first with get_agent_file, then send the full updated content. The file
+must already be linked to the agent, so this tool cannot accidentally edit an unrelated
+workspace file.`,
+        {
+            agent_id: z.string().describe('Agent ID'),
+            file_id: z.string().describe('File ID (from list_agent_files)'),
+            name: z.string().optional().describe('New filename'),
+            content: z.string().optional().describe('Full replacement file content'),
+            mime_type: z.string().optional().describe("MIME type/content type (e.g. 'markdown' or 'text/markdown')"),
+        },
+        async ({ agent_id, file_id, name, content, mime_type }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.updateAgentFile(agent_id, file_id, {
+                name,
+                content,
+                mimeType: mime_type,
             });
             return {
                 content: [{

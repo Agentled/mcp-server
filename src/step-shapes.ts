@@ -173,6 +173,7 @@ const AI_ACTION_EMAIL: StepShape = {
         'Open/click tracking only works for HTML email bodies (`bodyType: "html"`). Plain text emails cannot be tracked.',
         'For report notifications from the workspace assistant, no Gmail appAction is needed: compose a concise HTML notification and include `{{steps.<shareStepId>.shareUrl}}`.',
         'Email body must be email-safe HTML (<p>, <br>, <a>, <strong> — no CSS, no scripts).',
+        'Do not insert a separate approval milestone before this email step; the composed email step itself owns the approval gate and `schedule-email` side effect.',
         'Never add Gmail/Outlook/Composio send appAction steps unless the user explicitly asks to send through that provider account.',
     ],
 };
@@ -371,6 +372,7 @@ const APP_ACTION_SOURCE_FROM_PLATFORM: StepShape = {
         'Native action benefits over aiActionWithTools + web_search: deterministic outputs (same input → same output), typed fields (no prompt drift when adding fields), ~1 credit (vs 10–25 for an LLM tool loop), automatic per-step caching, automatic retry on transient failures.',
         'Name the step `Source: <Platform>` so the workflow shape is self-documenting. If the workflow name says "Source: <Platform>" but the underlying step is `aiActionWithTools` named "Discover via web search", that mismatch is the validator-nudge signal (`AI_STEP_PREFER_NATIVE_ACTION`) — re-check `list_apps` for a native app.',
         'For paginated sources, prefer one appAction step per page (or use the action\'s built-in pagination input) over a single aiActionWithTools that "searches and synthesizes". Pagination is deterministic; LLM extraction is not.',
+        'For write app actions such as publish/post/send/update, put approval directly on the appAction (`preExecuteApproval: true`, `onApproval.action: "execute-approved-action"`, `onApproval.target.type: "current-step"`). Do not add a separate "Approve X" milestone/wait step before the appAction.',
     ],
 };
 
@@ -543,6 +545,8 @@ const OUTPUT_PAGE_STANDARD: StepShape = {
         'SEO for public artifact shares of this page: `pageTitleTemplate` (string) and `pageDescriptionTemplate` (string) — resolved against the execution payload at metadata-generation time. Support `{{steps.<stepId>.<field>}}` and `{{input.<field>}}` (the trigger step output is exposed as `input`). Falls back to the static `title` / `description` above when empty or when any variable is unresolved. Example: `pageTitleTemplate: "{{input.companyName}} weekly report — {{steps.report.weekLabel}}"`.',
         'To add/replace: `update_workflow_context({ workflowId, updates: { context: { outputPages: [...] } }, replace: ["context.outputPages"] })`.',
         'Each `outputSteps[]` entry MUST match an existing step `id` in `workflow.steps` — orphan IDs render an empty page.',
+        'Selection rule: choose only the 1-3 user-facing result surfaces that match the workflow, e.g. LinkedIn publishing, X/Twitter publishing, scheduled email/outreach, a report, or a canonical results list. Group related step outputs together instead of creating one page per step.',
+        'Do not create output pages for approval placeholders, "mark sent/published" status steps, or internal implementation details.',
         'Workspace sidebar pins are separate from `context.outputPages`: only pin an output page at workspace level when it is relevant as a direct cross-workspace shortcut (recurring report, dashboard, canonical results list). Do not pin every output page, approval surface, or one-off execution artifact.',
     ],
 };

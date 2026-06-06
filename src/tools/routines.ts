@@ -21,6 +21,8 @@ const INTERVAL_VALUES = [
     '48h',
 ] as const;
 
+const TRIGGER_SOURCE_VALUES = ['codex', 'claude', 'ui', 'api', 'mcp'] as const;
+
 export function registerRoutineTools(server: McpServer, clientFactory: ClientFactory) {
 
     server.tool(
@@ -146,6 +148,29 @@ occurrence of the routine's interval from now.`,
         async ({ routine_id }, extra) => {
             const client = clientFactory(extra);
             const result = await client.resumeRoutine(routine_id);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
+        'trigger_routine',
+        `Run a routine immediately without changing its scheduled cadence.
+
+Use a short reason, for example "verify analytics monitor". Source must be one
+of: codex, claude, ui, api, mcp.`,
+        {
+            routine_id: z.string().describe('Routine ID'),
+            source: z.enum(TRIGGER_SOURCE_VALUES).describe('Manual trigger source tag'),
+            reason: z.string().min(1).max(120).describe('Short reason for the manual run'),
+        },
+        async ({ routine_id, source, reason }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.triggerRoutine(routine_id, { source, reason });
             return {
                 content: [{
                     type: 'text' as const,

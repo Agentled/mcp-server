@@ -77,7 +77,7 @@ Use configure_channel for more granular updates (enable/disable, allowedSenders,
 
 Allowed fields per channel:
 - email: enabled, defaultAgentId, allowedSenders (string[]), inboundAddress
-- slack: enabled, defaultAgentId, defaultChannelId
+- slack: enabled, defaultAgentId, defaultChannelId (Slack channel ID used to route inbound mentions when one Slack team is shared)
 - whatsapp: enabled, defaultAgentId
 - signal: enabled, defaultAgentId
 
@@ -89,7 +89,7 @@ external API — connect those via the Settings → Channels UI (OAuth flows enc
             default_agent_id: z.string().optional().describe('Agent ID to handle inbound messages'),
             allowed_senders: z.array(z.string()).optional().describe('Sender whitelist (email only; empty = allow all)'),
             inbound_address: z.string().optional().describe('Inbound email address (email only; usually auto-generated)'),
-            default_channel_id: z.string().optional().describe('Default Slack channel to post in (slack only)'),
+            default_channel_id: z.string().optional().describe('Slack channel ID to bind this workspace to, used for inbound mention routing when one Slack team is shared'),
         },
         async ({ channel_type, enabled, default_agent_id, allowed_senders, inbound_address, default_channel_id }, extra) => {
             const client = clientFactory(extra);

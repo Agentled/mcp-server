@@ -48,6 +48,37 @@ Also returns hasDraftSnapshot (boolean) and draftSnapshot summary if a draft exi
     );
 
     server.tool(
+        'get_workflow_credits',
+        `Get ledger-derived, period-labelled credit usage for a single workflow.
+
+Defaults to period=rolling-30-days. Set includeCostDrivers=true for bounded step/model/app cost drivers. Always show the returned period.label/display/start/end with any credit total. Use all-time intentionally because it can scan more ledger rows.`,
+        {
+            workflowId: z.string().describe('The workflow ID'),
+            period: z.enum(['rolling-30-days', 'rolling-7-days', 'current-month', 'previous-month', 'month-to-date', 'all-time'])
+                .optional()
+                .describe('Labelled reporting period. Default: rolling-30-days.'),
+            includeCostDrivers: z.boolean().optional().describe('Opt in to bounded workflow/step/model/app cost-driver groups.'),
+            includeRecentUsage: z.boolean().optional().describe('Include recent ledger rows. Defaults to true.'),
+            limit: z.number().int().positive().max(25).optional().describe('Max cost-driver rows per group, capped at 25.'),
+        },
+        async ({ workflowId, period, includeCostDrivers, includeRecentUsage, limit }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.getWorkflowCredits(workflowId, {
+                period,
+                includeCostDrivers,
+                includeRecentUsage,
+                limit,
+            });
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
         'create_workflow',
         `Create a new workflow.
 
@@ -98,6 +129,7 @@ For app actions, call \`get_app_actions({ appId })\` for input/output schemas. F
 ⚠️ NEVER pass raw user input (job titles, topics) directly to a search API — always generate optimized boolean/keyword queries first.
 **Enrich & Score**: \`appAction (fetch) → aiAction (score)\`
 **Draft & Send**: \`aiAction email → approval + schedule-email\`. Use HTML bodies for open/click tracking.
+**Write app action with approval**: put the approval directly on the write \`appAction\` (\`preExecuteApproval: true\`, \`onApproval.action: "execute-approved-action"\`, \`onApproval.target.type: "current-step"\`). Do not add a separate "Approve X" milestone/wait step before the write action, and do not add a separate "Mark X sent/published" step unless it records the real post-send result.
 **Report & Notify**: \`aiAction report with Config renderer → share step → aiAction notification email with concise HTML overview + shareUrl\`
 **Loop Enrich & Filter**: \`loopConfig on first step → appAction (enrich) → aiAction (score)\`
 
@@ -613,6 +645,7 @@ The workflow detail UI crashes on load if a page entry is missing required field
 - **\`context.outputPages\`** — \`PipelineOutputPage[]\`. Authoritative example: \`get_step_schema({ stepType: "outputPage", shape: "standard" })\`.
   - Required: \`id\` (string, unique), \`title\` (string), \`pathname\` (string, URL slug), \`outputSteps\` (string[] of step IDs that exist in \`workflow.steps\`).
   - Optional: \`description\`, \`iconName\`, \`displayConfig.showExecutionsList\` (boolean), \`displayConfig.executionNameTemplate\`, \`displayConfig.filterStatuses\`, \`displayConfig.defaultFilterStatus\`, \`displayConfig.sortField\`, \`displayConfig.sortDirection\`.
+  - Product rule: choose only the 1-3 user-facing result surfaces that match the workflow, e.g. LinkedIn publish, X/Twitter publish, scheduled email/outreach, report, or canonical results list. Group related step outputs on one page. Do not create output pages for approval placeholders, status markers, or internal implementation details.
 - **\`context.inputPages\`** — \`PipelineInputPage[]\`. Authoritative example: \`get_step_schema({ stepType: "inputPage", shape: "standard" })\`.
   - Required: \`title\`, \`pathname\`, \`configuration.contextKey\`, \`configuration.fields[]\`. Saved values land at \`context.<contextKey>\` (sibling).
 
@@ -695,6 +728,28 @@ A legacy \`{ contextKey, value }\` shape is still accepted for one-shot wholesal
 
 // Add a metadata tag.
 { updates: { metadata: { tags: ["beta"] } } }
+
+// Save an operator-facing executive summary for a workflow or workflow group.
+// Use this when a user asks to save a summary for the workflow, cluster, group,
+// or home card. Store it in metadata, not as KG text, unless the user explicitly
+// asks for a reusable knowledge note. For groups, write once to the owner
+// pipeline: prefer workflowGraph.role === "orchestrator"; otherwise use the
+// lowest workflowGraph.order pipeline. Keep body short, include concrete metrics
+// and the reporting period when available, and set author to the active
+// workspace agent (for example "by AngelHive Assistant"), not the external
+// coding/tool agent.
+{
+  updates: {
+    metadata: {
+      executiveSummary: {
+        body: "Startup Outreach sent 46 founder emails for the reporting period, with 28 opens and 9 clicks: a 60.9% open rate, 19.6% click rate, and 32.1% click-to-open rate.",
+        bullets: ["Clicks: 6 UTM Pitch Night, 2 plain Pitch Night, 1 calendar."],
+        generatedAt: "2026-06-03T00:00:00.000Z",
+        author: "by AngelHive Assistant"
+      }
+    }
+  }
+}
 
 // Delete an obsolete metadata key.
 { unset: ["metadata.legacyFlag"] }
@@ -1151,6 +1206,7 @@ Top-level keys are backward-compatible with pre-v0.11 callers that read \`descri
 - **Before adding an aiActionWithTools step**: \`get_step_schema({ stepType: "aiActionWithTools" })\`, then \`agentled tools builtins\` for the closed \`builtinType\` list.
 - **Before adding a code step**: \`get_step_schema({ stepType: "code", shape: "standard" })\`. Note: only JavaScript is supported — Python will fail at runtime.
 - **Before writing to \`context.outputPages\`**: \`get_step_schema({ stepType: "outputPage", shape: "standard" })\`. Required fields: \`id\`, \`title\`, \`pathname\`, \`outputSteps[]\` — missing any crashes the workflow detail UI on load.
+- **Output page selection rule**: keep workflow outputs compact. Select only the 1-3 user-facing result surfaces that match the workflow, such as LinkedIn publishing, X/Twitter publishing, scheduled email/outreach, a report, or a canonical results list. Do not create pages for approval placeholders, "mark sent/published" status steps, or internal plumbing.
 - **Before writing to \`context.inputPages\`**: \`get_step_schema({ stepType: "inputPage", shape: "standard" })\`. Saved values land at sibling \`context.<contextKey>\`.
 
 ## Trigger type guidance

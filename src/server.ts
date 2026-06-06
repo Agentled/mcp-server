@@ -2,7 +2,7 @@
  * Agentled MCP Server setup.
  *
  * Registers all tools and resources.
- * Supports both stdio (single-tenant via env var) and HTTP (multi-tenant via OAuth) modes.
+ * Supports both stdio (active saved workspace / env var) and HTTP (multi-tenant via OAuth) modes.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -29,12 +29,14 @@ import { registerWorkflowResources } from './resources/workflows.js';
 /**
  * Factory function that creates an AgentledClient per request.
  * In HTTP mode: uses the OAuth Bearer token from authInfo.
- * In stdio mode: falls back to AGENTLED_API_KEY env var.
+ * In stdio mode: uses AGENTLED_API_KEY or the active workspace from ~/.agentled/config.json.
  */
 export type ClientFactory = (extra: { authInfo?: { token?: string } }) => AgentledClient;
 
 function createClientFactory(): ClientFactory {
-    // Cache the env-var client for stdio mode (created once)
+    // Cache the stdio client for the current process. Restart/reconnect the MCP
+    // server after `agentled auth use` or `agentled auth login` changes the
+    // active workspace.
     let stdioClient: AgentledClient | null = null;
 
     return (extra) => {
@@ -47,17 +49,10 @@ function createClientFactory(): ClientFactory {
             });
         }
 
-        // Stdio mode: reuse single client from env vars
-        // This will throw if AGENTLED_API_KEY is not set, which is expected
-        // in HTTP-only mode — the error surfaces only if a tool is called
-        // without a Bearer token (which shouldn't happen after OAuth).
+        // Stdio mode: reuse a client resolved from env vars or the active
+        // ~/.agentled workspace profile. This throws only if a tool is called
+        // without any configured auth.
         if (!stdioClient) {
-            if (!process.env.AGENTLED_API_KEY) {
-                throw new Error(
-                    'No authentication provided. In HTTP mode, requests must include a Bearer token. ' +
-                    'In stdio mode, set AGENTLED_API_KEY environment variable.'
-                );
-            }
             stdioClient = new AgentledClient();
         }
         return stdioClient;

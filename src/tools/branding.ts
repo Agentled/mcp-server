@@ -15,18 +15,58 @@ export function registerBrandingTools(server: McpServer, clientFactory: ClientFa
 Returns:
 - currentBalance: remaining credits on the subscription plan
 - planType: subscription tier (e.g., "pro", "teams")
-- periodDays: lookback window for usage stats (default 30 days)
-- usedThisPeriod: total credits consumed in the last N days
+- period: exact labelled window for every total (label, display, start, end)
+- periodDays: lookback window for usage stats when applicable
+- usedThisPeriod: total credits consumed in the labelled period
 - totalExecutions: number of unique workflow executions in the period
 - averageCreditsPerExecution: average cost per run
-- recentUsage: last 20 credit deductions with execution/step context
+- recentUsage: last 20 credit deductions with execution/step context unless includeRecentUsage=false
+- costDrivers: optional bounded top workflows, steps, models, and apps when includeCostDrivers=true
 
-Use this to check if the workspace has enough credits before starting expensive workflows,
+Every usage total is ledger-derived and must be shown with its period label. Use this to check if the workspace has enough credits before starting expensive workflows,
 or to report balance and burn rate to stakeholders.`,
-        {},
-        async (_args, extra) => {
+        {
+            period: z.enum(['rolling-30-days', 'rolling-7-days', 'current-month', 'previous-month', 'month-to-date', 'all-time'])
+                .optional()
+                .describe('Labelled reporting period. Default: rolling-30-days.'),
+            includeCostDrivers: z.boolean().optional().describe('Opt in to bounded workflow/step/model/app cost-driver groups.'),
+            includeRecentUsage: z.boolean().optional().describe('Include recent ledger rows. Defaults to true.'),
+            limit: z.number().int().positive().max(25).optional().describe('Max cost-driver rows per group, capped at 25.'),
+        },
+        async ({ period, includeCostDrivers, includeRecentUsage, limit }, extra) => {
             const client = clientFactory(extra);
-            const result = await client.getWorkspaceCredits();
+            const result = await client.getWorkspaceCredits({ period, includeCostDrivers, includeRecentUsage, limit });
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
+        'get_workspace_credit_cost_drivers',
+        `Get a concise, ledger-derived workspace credit cost-driver report.
+
+Defaults to period=rolling-30-days and includeCostDrivers=true. Returned totals are period-labelled; always show the period.label/display/start/end alongside credit totals.
+
+Cost drivers include bounded top workflows, steps, models, and apps. Use all-time intentionally because it can scan more ledger rows.`,
+        {
+            period: z.enum(['rolling-30-days', 'rolling-7-days', 'current-month', 'previous-month', 'month-to-date', 'all-time'])
+                .optional()
+                .describe('Labelled reporting period. Default: rolling-30-days.'),
+            includeRecentUsage: z.boolean().optional().describe('Include recent ledger rows. Defaults to true.'),
+            limit: z.number().int().positive().max(25).optional().describe('Max cost-driver rows per group, capped at 25.'),
+        },
+        async ({ period, includeRecentUsage, limit }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.getWorkspaceCredits({
+                period,
+                includeCostDrivers: true,
+                includeRecentUsage,
+                limit,
+            });
             return {
                 content: [{
                     type: 'text' as const,

@@ -113,7 +113,7 @@ Use this to inspect what a workflow produced, debug failures, or check intermedi
 executionId must be the PipelineExecution id, not executionInputId. If start_workflow returned only executionInputId, first call list_executions and match pipelineExecutionInputId to find the execution id.`,
         {
             workflowId: z.string().describe('The workflow ID'),
-            executionId: z.string().describe('The execution ID'),
+            executionId: z.string().describe('The execution ID. UI run deep links use /runs?runId=<executionId>&step=<stepId>, where step is optional.'),
         },
         async ({ workflowId, executionId }, extra) => {
             const client = clientFactory(extra);
@@ -134,7 +134,7 @@ executionId must be the PipelineExecution id, not executionInputId. If start_wor
 To debug the actual prompt used for a step in an execution, find that step's timeline here, then call get_timeline and inspect metadata.computedPrompt. get_step only shows the configured prompt template, not the resolved execution prompt.`,
         {
             workflowId: z.string().describe('The workflow ID'),
-            executionId: z.string().describe('The execution ID'),
+            executionId: z.string().describe('The execution ID. UI run deep links use /runs?runId=<executionId>&step=<stepId>, where step is the workflow step id from these timeline records.'),
             limit: z.number().optional().describe('Max results (default 50, max 500)'),
             direction: z.enum(['asc', 'desc']).optional().describe('Sort order by creation time (default: desc)'),
             nextToken: z.string().optional().describe('Pagination cursor from a previous response. Pass this to fetch the next page of results.'),
@@ -174,6 +174,64 @@ To debug the actual prompt used for this step invocation, inspect metadata.compu
     );
 
     server.tool(
+        'get_workflow_analytics',
+        `Get aggregated workflow analytics from persisted snapshots. Use type="business" to retrieve business metrics configured in analyticsConfig, including trackingEvent metrics such as opened/clicked when configured. Use period="lifetime" for all-time totals or period="daily" for a time series.`,
+        {
+            workflowId: z.string().describe('The workflow ID'),
+            period: z.enum(['hourly', 'daily', 'lifetime']).optional().describe('Snapshot period. Default daily.'),
+            type: z.enum(['execution', 'business']).optional().describe('Analytics surface. Use business for analyticsConfig metrics; execution for runtime/cost snapshots.'),
+            days: z.number().optional().describe('Lookback window for hourly/daily periods. Default 30, max 90. Ignored for lifetime.'),
+        },
+        async ({ workflowId, period, type, days }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.getWorkflowAnalytics(workflowId, { period, type, days });
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
+        'list_tracking_events',
+        `List raw tracking events for a workflow, such as email sent/opened/clicked events. Supports filtering by eventType, executionId, timelineId, channel, and createdAt range. Set aggregate=true to include simple counts by event type, channel, and URL for the returned page.`,
+        {
+            workflowId: z.string().describe('The workflow ID'),
+            eventType: z.string().optional().describe('Filter by event type, e.g. sent, opened, clicked, replied, bounced'),
+            channel: z.string().optional().describe('Filter by channel, e.g. email'),
+            executionId: z.string().optional().describe('Filter by pipeline execution ID'),
+            timelineId: z.string().optional().describe('Filter by pipeline timeline ID'),
+            since: z.string().optional().describe('Filter createdAt >= this ISO timestamp'),
+            until: z.string().optional().describe('Filter createdAt <= this ISO timestamp'),
+            aggregate: z.boolean().optional().describe('Include aggregate counts for the returned page'),
+            limit: z.number().optional().describe('Max events (default 100, max 1000)'),
+            nextToken: z.string().optional().describe('Pagination cursor from a previous response'),
+        },
+        async ({ workflowId, eventType, channel, executionId, timelineId, since, until, aggregate, limit, nextToken }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.listTrackingEvents(workflowId, {
+                eventType,
+                channel,
+                executionId,
+                timelineId,
+                since,
+                until,
+                aggregate,
+                limit,
+                nextToken,
+            });
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
         'stop_execution',
         'Stop a running or pending workflow execution. Only works on executions with status "running" or "pending".',
         {
@@ -184,6 +242,39 @@ To debug the actual prompt used for this step invocation, inspect metadata.compu
         async ({ workflowId, executionId, reason }, extra) => {
             const client = clientFactory(extra);
             const result = await client.stopExecution(workflowId, executionId, { reason });
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
+        'delete_execution',
+        `Delete a stopped workflow execution and its related timeline/chat records.
+
+EXCEPTION-ONLY admin maintenance tool. Requires an API key with admin:patch scope.
+
+Required operator flow:
+  1. Call stop_execution with a human-readable reason.
+  2. Wait until get_execution shows status "stopped".
+  3. Call delete_execution with reason and confirmExecutionId exactly matching executionId.
+
+The API rejects non-stopped executions and mismatched confirmation. This is destructive and should only be used for stopped test runs or incident cleanup.`,
+        {
+            workflowId: z.string().describe('The workflow ID'),
+            executionId: z.string().describe('The stopped execution ID to delete'),
+            reason: z.string().min(1).max(500).describe('Why this deletion is needed; stored in the admin audit log'),
+            confirmExecutionId: z.string().describe('Must exactly match executionId as explicit confirmation'),
+        },
+        async ({ workflowId, executionId, reason, confirmExecutionId }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.deleteExecution(workflowId, executionId, {
+                reason,
+                confirmExecutionId,
+            });
             return {
                 content: [{
                     type: 'text' as const,

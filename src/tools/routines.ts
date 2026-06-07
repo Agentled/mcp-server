@@ -17,7 +17,7 @@ const INTERVAL_VALUES = [
     'weekly-tuesday-evening',
     'weekly-friday-evening',
     'daily',
-    '2h',
+    'monthly',
     '6h',
     '48h',
 ] as const;
@@ -181,16 +181,16 @@ Interval values:
   By schedule: weekday-morning (Mon–Fri 08:00 UTC), weekday-evening (Mon–Fri 18:00 UTC),
                weekly-monday (Mon 08:00 UTC), weekly-tuesday-evening (Tue 18:00 UTC),
                weekly-friday-evening (Fri 18:00 UTC),
-               daily (every day 08:00 UTC)
-  By interval: 2h, 6h, 48h
+               daily (every day 08:00 UTC), monthly (1st of month 08:00 UTC)
+  By interval: 6h, 48h
 
-Model format: "provider:modelId" e.g. "anthropic:claude-4-6-sonnet" (default).`,
+Model format: "provider:modelId" e.g. "openai:gpt-5.4-mini" (default).`,
         {
             agent_id: z.string().describe('Agent slug or ID'),
             name: z.string().describe('Routine name'),
             prompt: z.string().describe('Instructions the agent follows each run'),
             interval: z.enum(INTERVAL_VALUES).describe('Run schedule'),
-            model: z.string().optional().describe('Model to use (default: anthropic:claude-4-6-sonnet)'),
+            model: z.string().optional().describe('Model to use (default: openai:gpt-5.4-mini)'),
             max_steps_per_run: z.number().int().optional().describe('Max tool-use steps per run (default: 20)'),
             max_credits_per_day: z.number().int().optional().describe('Daily credit cap (default: 50)'),
         },

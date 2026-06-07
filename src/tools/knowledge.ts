@@ -90,7 +90,7 @@ The API writes only Workspace.metadata.executiveSummary and preserves other work
         {
             body: z.string().describe('One non-empty workspace executive-summary paragraph.'),
             bullets: z.array(z.string()).max(5).optional().describe('Optional concise bullets. Empty strings are ignored by the API.'),
-            author: z.string().optional().describe('Optional author label, e.g. "by Workspace Assistant".'),
+            author: z.string().optional().describe('Optional author display name, e.g. "Workspace Assistant". Do not include a leading "by".'),
         },
         async (args, extra) => {
             const client = clientFactory(extra);

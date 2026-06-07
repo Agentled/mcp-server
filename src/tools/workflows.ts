@@ -736,8 +736,8 @@ A legacy \`{ contextKey, value }\` shape is still accepted for one-shot wholesal
 // pipeline: prefer workflowGraph.role === "orchestrator"; otherwise use the
 // lowest workflowGraph.order pipeline. Keep body short, include concrete metrics
 // and the reporting period when available, and set author to the active
-// workspace agent (for example "by AngelHive Assistant"), not the external
-// coding/tool agent.
+// workspace agent name only (for example "AngelHive Assistant"), not the
+// external coding/tool agent, and without a leading "by".
 {
   updates: {
     metadata: {
@@ -745,7 +745,7 @@ A legacy \`{ contextKey, value }\` shape is still accepted for one-shot wholesal
         body: "Startup Outreach sent 46 founder emails for the reporting period, with 28 opens and 9 clicks: a 60.9% open rate, 19.6% click rate, and 32.1% click-to-open rate.",
         bullets: ["Clicks: 6 UTM Pitch Night, 2 plain Pitch Night, 1 calendar."],
         generatedAt: "2026-06-03T00:00:00.000Z",
-        author: "by AngelHive Assistant"
+        author: "AngelHive Assistant"
       }
     }
   }

@@ -320,7 +320,7 @@ Each workflow card (cluster) on the home page renders a per-cluster summary bloc
   "body": "Sourcing surfaced 47 new startups this week. 12 met the fit threshold; 4 high-priority.",
   "bullets": ["47 new candidates", "12 qualified", "4 high-priority"],
   "generatedAt": "2026-05-09T07:00:00Z",
-  "author": "by Sourcing Agent"
+  "author": "Sourcing Agent"
 }
 ```
 

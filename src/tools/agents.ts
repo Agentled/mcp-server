@@ -94,7 +94,8 @@ Key fields:
 - configFiles: Override generated config files — keys are 'SOUL.md' (persona), 'TOOLS.md' (tool routing).
   If omitted, files are auto-generated from agentType template.
   Reflection context files ('JOURNAL.md', 'OBJECTIVES.md', 'PEOPLE.md') are linked AgentFiles, not configFiles.
-  Active chat-only agents with reflection routines auto-seed placeholders for those files.
+  Active chat-only agents auto-seed placeholders for those files. The agent decides what durable signal belongs there;
+  do not write raw transcript logs or update them just because a chat turn happened.
 - avatar_icon_name: Lucide icon name for the agent avatar (e.g. 'Bot', 'Radar', 'Target', 'Sparkles')
 - avatar_color: Hex color for the avatar (e.g. '#6366f1', '#7C3AED', '#EA580C')
 - linkedFileIds: Workspace-level AgentFile IDs to attach as knowledge (from list_agent_files — workspace scope)
@@ -461,9 +462,10 @@ reference documents, knowledge bases, or configuration data.
         `Update a file that is already attached to an agent.
 
 Use this for durable reflection context such as JOURNAL.md, OBJECTIVES.md, and PEOPLE.md:
-read the current file first with get_agent_file, then send the full updated content. The file
-must already be linked to the agent, so this tool cannot accidentally edit an unrelated
-workspace file.`,
+read the current file first with get_agent_file, then send the full updated content. Update
+only when there is durable signal (decisions, corrections, objectives, people context, or
+useful learning), not for every chat turn. The file must already be linked to the agent, so
+this tool cannot accidentally edit an unrelated workspace file.`,
         {
             agent_id: z.string().describe('Agent ID'),
             file_id: z.string().describe('File ID (from list_agent_files)'),

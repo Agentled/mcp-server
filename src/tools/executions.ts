@@ -233,11 +233,11 @@ To debug the actual prompt used for this step invocation, inspect metadata.compu
 
     server.tool(
         'stop_execution',
-        'Stop a running or pending workflow execution. Only works on executions with status "running" or "pending".',
+        'Stop an active workflow execution. Works on executions with status "running", "pending", or "started"; requires a human-readable reason persisted in execution metadata.',
         {
             workflowId: z.string().describe('The workflow ID'),
             executionId: z.string().describe('The execution ID to stop'),
-            reason: z.string().max(500).optional().describe('Optional stop reason persisted in execution metadata'),
+            reason: z.string().min(1).max(500).describe('Stop reason persisted in execution metadata'),
         },
         async ({ workflowId, executionId, reason }, extra) => {
             const client = clientFactory(extra);
@@ -474,7 +474,7 @@ EXCEPTION-ONLY tool. Primary use case: relabeling a stuck or test run's executio
   - Update metadata.debugNote during incident investigation
   - Update metadata.pendingReasonTag for UI annotation
   - Advance currentStepId for stuck-state recovery (only when status is waiting or failed)
-  - Force status transitions: waiting/failed/credits_missing → running
+  - Force status transitions: waiting/failed/credits_missing → running, or started → stopped/canceled
 
 DO NOT use for routine work. If you find yourself reaching for this tool repeatedly, the underlying workflow is misconfigured and the right fix is to update the workflow definition or the execution input.
 
@@ -487,7 +487,7 @@ Allowed paths:
   - metadata.pendingReasonTag
   - metadata.executionName  (relabel run; orchestrator may recompute via executionNameTemplate)
   - currentStepId  (only when status is waiting or failed)
-  - status  (only waiting → running, failed → running, credits_missing → running)
+  - status  (only waiting → running, failed → running, credits_missing → running, started → stopped/canceled)
 
 Forbidden:
   - Wholesale metadata replacement (must use sub-paths)

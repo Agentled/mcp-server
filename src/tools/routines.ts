@@ -175,7 +175,7 @@ Pass the agent's slug (e.g. "dealflow") or ID as \`agent_id\`.`,
 
     server.tool(
         'create_routine',
-        `Create a new routine for an agent.
+        `Create a new routine for an agent. Routines are paid autonomous features; free-tier workspaces cannot create or resume them.
 
 Interval values:
   By schedule: weekday-morning (Mon–Fri 08:00 UTC), weekday-evening (Mon–Fri 18:00 UTC),
@@ -184,7 +184,8 @@ Interval values:
                daily (every day 08:00 UTC), monthly (1st of month 08:00 UTC)
   By interval: 6h, 48h
 
-Model format: "provider:modelId" e.g. "openai:gpt-5.4-mini" (default).`,
+Model format: "provider:modelId" e.g. "openai:gpt-5.4-mini" (default).
+Use skillIds from list_agent_skills for routine-level skill overrides.`,
         {
             agent_id: z.string().describe('Agent slug or ID'),
             name: z.string().describe('Routine name'),
@@ -193,8 +194,9 @@ Model format: "provider:modelId" e.g. "openai:gpt-5.4-mini" (default).`,
             model: z.string().optional().describe('Model to use (default: openai:gpt-5.4-mini)'),
             max_steps_per_run: z.number().int().optional().describe('Max tool-use steps per run (default: 20)'),
             max_credits_per_day: z.number().int().optional().describe('Daily credit cap (default: 50)'),
+            skillIds: z.array(z.string()).optional().describe('Routine-level skill IDs. Overrides the parent agent skills for this routine.'),
         },
-        async ({ agent_id, name, prompt, interval, model, max_steps_per_run, max_credits_per_day }, extra) => {
+        async ({ agent_id, name, prompt, interval, model, max_steps_per_run, max_credits_per_day, skillIds }, extra) => {
             const client = clientFactory(extra);
             const result = await client.createRoutine(agent_id, {
                 name,
@@ -203,6 +205,7 @@ Model format: "provider:modelId" e.g. "openai:gpt-5.4-mini" (default).`,
                 model,
                 maxStepsPerRun: max_steps_per_run,
                 maxCreditsPerDay: max_credits_per_day,
+                skillIds,
             });
             const decorated = decorateRoutineResponseWithUrls(result, routineUrlContext({
                 workspaceSlug: inferWorkspaceSlug(agent_id),
@@ -228,9 +231,10 @@ If interval is updated, nextRunAt is automatically recalculated.`,
             model: z.string().optional().describe('New model'),
             max_steps_per_run: z.number().int().optional().describe('Max steps per run'),
             max_credits_per_day: z.number().int().optional().describe('Daily credit cap'),
+            skillIds: z.array(z.string()).optional().describe('Routine-level skill IDs. Overrides the parent agent skills for this routine.'),
             status: z.enum(['active', 'paused']).optional().describe('New status'),
         },
-        async ({ routine_id, name, prompt, interval, model, max_steps_per_run, max_credits_per_day, status }, extra) => {
+        async ({ routine_id, name, prompt, interval, model, max_steps_per_run, max_credits_per_day, skillIds, status }, extra) => {
             const client = clientFactory(extra);
             const result = await client.updateRoutine(routine_id, {
                 name,
@@ -239,6 +243,7 @@ If interval is updated, nextRunAt is automatically recalculated.`,
                 model,
                 maxStepsPerRun: max_steps_per_run,
                 maxCreditsPerDay: max_credits_per_day,
+                skillIds,
                 status,
             });
             const decorated = decorateRoutineResponseWithUrls(result, routineUrlContext());
@@ -272,7 +277,7 @@ If interval is updated, nextRunAt is automatically recalculated.`,
 
     server.tool(
         'resume_routine',
-        `Resume a paused routine (status → active). nextRunAt is reset to the next
+        `Resume a paused routine (status → active). Routines are paid autonomous features; free-tier workspaces cannot resume them. nextRunAt is reset to the next
 occurrence of the routine's interval from now.`,
         {
             routine_id: z.string().describe('Routine ID'),
@@ -292,7 +297,7 @@ occurrence of the routine's interval from now.`,
 
     server.tool(
         'trigger_routine',
-        `Run a routine immediately without changing its scheduled cadence.
+        `Run a routine immediately without changing its scheduled cadence. Free-tier workspaces cannot trigger routines.
 
 Use a short reason, for example "verify analytics monitor". Source must be one
 of: codex, claude, ui, api, mcp.`,

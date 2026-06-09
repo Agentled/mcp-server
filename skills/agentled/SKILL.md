@@ -1,6 +1,6 @@
 ---
 name: agentled
-version: 0.6.0
+version: 0.6.1
 description: Build, manage, and execute Agentled AI workflows via MCP tools. Use when the user asks to create workflows, automate tasks, enrich leads, scrape websites, find emails, manage executions, or interact with any Agentled workspace capability.
 user-invocable: false
 ---
@@ -8,6 +8,38 @@ user-invocable: false
 # Agentled Workflow Automation
 
 You have access to the Agentled MCP server which lets you create, manage, and execute AI-powered workflows. Use these tools to help the user automate business processes.
+
+## External builder setup
+
+When this session is acting as an external AI builder for Agentled work items,
+register or refresh the builder identity before listing, claiming, or submitting
+builder work. This links the current API key to a visible builder profile in
+Developer settings and lets business agents attribute work correctly.
+
+- If MCP is available, call `upsert_ai_builder_profile` once per API key with
+  the provider (`codex`, `claude`, `openclaw`, `herms`, or `custom`), a clear
+  display name, and optional metadata such as capabilities or setup state.
+- If only shell/CLI access is available, run:
+
+```bash
+agentled builders profile upsert --provider codex --name "Codex"
+```
+
+After the profile exists, use `list_builder_work_items` / `agentled builders
+work-items list` according to the polling cadence in the MCP tool description.
+If a builder-work command returns `Call upsert_ai_builder_profile...`, do that
+setup step and retry; do not ask the user to create the profile manually.
+
+## CLI freshness
+
+Use the latest `@agentled/cli` for setup, local scaffolds, fixtures, tests, and
+builder-work CLI commands. Prefer `npx -y @agentled/cli@latest ...` for one-off
+setup commands. If using a global `agentled` install, run `agentled --version`
+or any CLI command and follow the update notice when it reports a newer version.
+
+Do not block a working MCP-only task just because the local CLI is absent or old.
+Only update/install the CLI when the task needs CLI-backed setup, local files,
+fixtures, tests, or builder-work commands.
 
 ## Goal and bottleneck first
 
@@ -119,6 +151,26 @@ agentled best-practices                             # summary + link to agentic-
 
 > **Silent-strip failures caught by preflight:** invalid `type` on a context / input-page field (e.g. `"multi-select"`, `"checkbox"`, `"number"`) and invalid `builtinType` on an `aiActionWithTools` tool (e.g. `"web-search"`, `"memory"`) both get silently stripped by the runtime — `workflows validate` now flags them with a "did you mean" fix.
 
+### Prompt caching for repeated AI steps
+
+Provider prompt caching reduces cost/latency by reusing the identical prompt prefix; it does not cache or replay the AI answer. For high-volume `aiAction`, `aiActionWithTools`, and looped AI steps, put stable role, task, rubric, examples, output schema, and formatting rules before the first `{{...}}` variable.
+
+Use this layout:
+
+```text
+[stable role and task]
+[stable rubric / scoring dimensions]
+[stable output JSON schema]
+[stable examples or decision rules]
+
+Runtime inputs:
+{{currentItem}}
+{{steps.previous.output}}
+{{input.field}}
+```
+
+Avoid starting prompts with `INPUTS`, `{{currentItem}}`, `{{steps.*}}`, `{{input.*}}`, `{{execution.id}}`, `{{now}}`, or `{{today}}`. In batch workflows like investor matching, keep the long scoring rubric first and put the startup/investor payload at the end so OpenAI/Anthropic can cache the shared prefix.
+
 **Which pattern to read, by task:**
 
 | You're building… | Read pattern | Scaffold |
@@ -197,7 +249,7 @@ The Config renderer accepts the step config without validation, then individual 
 
 For orchestrator digests (pipeline health, daily/weekly summaries) use the **`funnel` block** with `stages: [{ label, valuePath, icon }]` — see § Pattern B. The funnel auto-detects bottlenecks from stage-to-stage drops.
 
-## Platform capabilities (background reading)
+## Platform Skills And Guarantees (background reading)
 
 Agentled provides caching per step, automatic retry with backoff, a persistent Knowledge Graph, scoped permissions, and a unified credit system across 100+ integrations. For the full rationale, see `skills/agentled/WHY-AGENTLED.md` (CLI) or the Agentled documentation.
 

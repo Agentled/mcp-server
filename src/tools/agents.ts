@@ -89,6 +89,7 @@ Key fields:
 - enabledApps: App IDs this agent can use — get IDs from list_apps (e.g. ['web-scraping', 'kg', 'gmail'])
 - appPermissions: Optional per-app permissions keyed by app ID. Use { access: 'read' } for read-only or { access: 'write', writeApprovalRequired: true } for mutating access with approval.
   Read access is implicit and never requires approval. The internal 'agentled' app is not configurable here.
+- skillIds: Skill IDs from list_agent_skills. Stored internally as enabledSkills; user-facing label is Skills.
 - assignedWorkflowIds: Workflow IDs this agent can trigger — get IDs from list_workflows
 - goals: Natural-language description of what the agent should achieve
 - configFiles: Override generated config files — keys are 'SOUL.md' (persona), 'TOOLS.md' (tool routing).
@@ -119,6 +120,7 @@ To add scheduled routines after creating the agent, use create_routine.`,
             ]).optional().describe('Preset agent type template (default: custom)'),
             enabledApps: z.array(z.string()).optional().describe("App IDs the agent can use (e.g. ['web-scraping', 'kg', 'gmail'])"),
             enabledActions: z.array(z.string()).optional().describe('Specific action IDs to enable (fine-grained control within apps)'),
+            skillIds: z.array(z.string()).optional().describe('Skill IDs from list_agent_skills. Stored internally as enabledSkills; user-facing label is Skills.'),
             appPermissions: z.record(z.string(), z.object({
                 access: z.enum(['read', 'write']).describe('read exposes read-only actions; write also exposes mutating actions'),
                 writeApprovalRequired: z.boolean().optional().describe('Only applies to write access. Defaults to true.'),
@@ -140,7 +142,7 @@ To add scheduled routines after creating the agent, use create_routine.`,
         },
         async ({
             name, description, instructions, agentType,
-            enabledApps, enabledActions, appPermissions, assignedWorkflowIds, linkedFileIds, chatModel,
+            enabledApps, enabledActions, skillIds, appPermissions, assignedWorkflowIds, linkedFileIds, chatModel,
             goals, configFiles,
             avatar_icon_name, avatar_color,
             activate, status, modelTier, maxCreditsPerDay,
@@ -148,7 +150,13 @@ To add scheduled routines after creating the agent, use create_routine.`,
             const client = clientFactory(extra);
             const result = await client.createAgent({
                 name, description, instructions, agentType,
-                enabledApps, enabledActions, appPermissions, assignedWorkflowIds, linkedFileIds, chatModel,
+                enabledApps,
+                enabledActions,
+                skillIds,
+                appPermissions,
+                assignedWorkflowIds,
+                linkedFileIds,
+                chatModel,
                 goals, configFiles,
                 iconName: avatar_icon_name,
                 iconColor: avatar_color,

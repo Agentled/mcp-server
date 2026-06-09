@@ -1,7 +1,7 @@
 /**
  * MCP Tools — Channels
  *
- * Channels are workspace-level integrations (email, Slack, WhatsApp, Signal)
+ * Channels are workspace-level integrations (email, Slack, WhatsApp, Signal, Telegram)
  * that route inbound messages to a specific agent. Each channel has a
  * `defaultAgentId` that decides which agent handles incoming conversations.
  *
@@ -13,7 +13,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { ClientFactory } from '../server.js';
 
-const CHANNEL_TYPES = ['email', 'slack', 'whatsapp', 'signal'] as const;
+const CHANNEL_TYPES = ['email', 'slack', 'whatsapp', 'signal', 'telegram'] as const;
 
 export function registerChannelTools(server: McpServer, clientFactory: ClientFactory) {
 
@@ -21,7 +21,7 @@ export function registerChannelTools(server: McpServer, clientFactory: ClientFac
         'list_channels',
         `List the workspace's channel integrations and their configuration.
 
-Returns each configured channel (email, slack, whatsapp, signal) with:
+Returns each configured channel (email, slack, whatsapp, signal, telegram) with:
 - enabled: whether the channel is active
 - defaultAgentId: the agent handling inbound conversations on this channel
 - inboundAddress (email): auto-generated inbound email address
@@ -46,14 +46,14 @@ Use this to discover which channels exist before assigning agents to them.`,
         'set_channel_default_agent',
         `Assign the agent that handles inbound conversations on a given channel.
 
-When a message arrives on the channel (email, Slack DM, WhatsApp message, Signal message),
+When a message arrives on the channel (email, Slack DM, WhatsApp message, Signal message, Telegram message),
 it is routed to this agent's chat endpoint. The agent's instructions and tools are used
 to compose a reply, which is sent back through the originating channel.
 
 Use list_channels to inspect current assignments and list_agents to find valid agent IDs.
 Use configure_channel for more granular updates (enable/disable, allowedSenders, etc.).`,
         {
-            channel_type: z.enum(CHANNEL_TYPES).describe("Channel type: 'email', 'slack', 'whatsapp', or 'signal'"),
+            channel_type: z.enum(CHANNEL_TYPES).describe("Channel type: 'email', 'slack', 'whatsapp', 'signal', or 'telegram'"),
             agent_id: z.string().describe('Agent ID to handle inbound messages on this channel'),
         },
         async ({ channel_type, agent_id }, extra) => {
@@ -80,18 +80,21 @@ Allowed fields per channel:
 - slack: enabled, defaultAgentId, defaultChannelId (Slack channel ID used to route inbound mentions when one Slack team is shared)
 - whatsapp: enabled, defaultAgentId
 - signal: enabled, defaultAgentId
+- telegram: enabled, defaultAgentId, botUsername, allowedChatIds
 
 Secret fields (botToken, signingSecret, accessToken, webhookSecret) are REJECTED by the
 external API — connect those via the Settings → Channels UI (OAuth flows encrypt at rest).`,
         {
-            channel_type: z.enum(CHANNEL_TYPES).describe("Channel type: 'email', 'slack', 'whatsapp', or 'signal'"),
+            channel_type: z.enum(CHANNEL_TYPES).describe("Channel type: 'email', 'slack', 'whatsapp', 'signal', or 'telegram'"),
             enabled: z.boolean().optional().describe('Enable or disable the channel'),
             default_agent_id: z.string().optional().describe('Agent ID to handle inbound messages'),
             allowed_senders: z.array(z.string()).optional().describe('Sender whitelist (email only; empty = allow all)'),
             inbound_address: z.string().optional().describe('Inbound email address (email only; usually auto-generated)'),
             default_channel_id: z.string().optional().describe('Slack channel ID to bind this workspace to, used for inbound mention routing when one Slack team is shared'),
+            bot_username: z.string().optional().describe('Telegram bot username without @ (Telegram only)'),
+            allowed_chat_ids: z.array(z.string()).optional().describe('Telegram chat ID allow-list (Telegram only)'),
         },
-        async ({ channel_type, enabled, default_agent_id, allowed_senders, inbound_address, default_channel_id }, extra) => {
+        async ({ channel_type, enabled, default_agent_id, allowed_senders, inbound_address, default_channel_id, bot_username, allowed_chat_ids }, extra) => {
             const client = clientFactory(extra);
             const updates: Record<string, any> = {};
             if (enabled !== undefined) updates.enabled = enabled;
@@ -99,6 +102,8 @@ external API — connect those via the Settings → Channels UI (OAuth flows enc
             if (allowed_senders !== undefined) updates.allowedSenders = allowed_senders;
             if (inbound_address !== undefined) updates.inboundAddress = inbound_address;
             if (default_channel_id !== undefined) updates.defaultChannelId = default_channel_id;
+            if (bot_username !== undefined) updates.botUsername = bot_username;
+            if (allowed_chat_ids !== undefined) updates.allowedChatIds = allowed_chat_ids;
 
             if (Object.keys(updates).length === 0) {
                 return {

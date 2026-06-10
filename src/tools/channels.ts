@@ -2,8 +2,8 @@
  * MCP Tools — Channels
  *
  * Channels are workspace-level integrations (email, Slack, WhatsApp, Signal, Telegram)
- * that route inbound messages to a specific agent. Each channel has a
- * `defaultAgentId` that decides which agent handles incoming conversations.
+ * that route inbound messages to agents. Email routes by per-agent address;
+ * Slack, WhatsApp, Signal, and Telegram route through a channel `defaultAgentId`.
  *
  * Secret credentials (Slack tokens, WhatsApp access tokens, etc.) must be
  * configured via the UI — the external API intentionally does not accept them.
@@ -23,12 +23,12 @@ export function registerChannelTools(server: McpServer, clientFactory: ClientFac
 
 Returns each configured channel (email, slack, whatsapp, signal, telegram) with:
 - enabled: whether the channel is active
-- defaultAgentId: the agent handling inbound conversations on this channel
-- inboundAddress (email): auto-generated inbound email address
+- defaultAgentId: the agent handling inbound conversations on default-routed channels
+- inboundAddress (email): workspace address pattern; each agent also exposes its own email in list_agents/get_agent/create_agent
 - Other non-secret config (team names, channel IDs, phone numbers)
 
 Secret credentials (bot tokens, access tokens, signing secrets) are REDACTED in the response.
-Use this to discover which channels exist before assigning agents to them.`,
+Use this to discover which channels exist before assigning agents to default-routed channels.`,
         {},
         async (_args, extra) => {
             const client = clientFactory(extra);
@@ -44,11 +44,10 @@ Use this to discover which channels exist before assigning agents to them.`,
 
     server.tool(
         'set_channel_default_agent',
-        `Assign the agent that handles inbound conversations on a given channel.
+        `Assign the agent that handles inbound conversations on a default-routed channel.
 
-When a message arrives on the channel (email, Slack DM, WhatsApp message, Signal message, Telegram message),
-it is routed to this agent's chat endpoint. The agent's instructions and tools are used
-to compose a reply, which is sent back through the originating channel.
+Slack, WhatsApp, Signal, and Telegram use defaultAgentId routing. Email does not: email routes by
+per-agent address and agent responses include the derived address in their channels array.
 
 Use list_channels to inspect current assignments and list_agents to find valid agent IDs.
 Use configure_channel for more granular updates (enable/disable, allowedSenders, etc.).`,
@@ -76,7 +75,7 @@ Use configure_channel for more granular updates (enable/disable, allowedSenders,
         `Update non-secret channel configuration — enable/disable, default agent, allowed senders, etc.
 
 Allowed fields per channel:
-- email: enabled, defaultAgentId, allowedSenders (string[]), inboundAddress
+- email: enabled, allowedSenders (string[]), inboundAddress. defaultAgentId is legacy and ignored by email routing.
 - slack: enabled, defaultAgentId, defaultChannelId (Slack channel ID used to route inbound mentions when one Slack team is shared)
 - whatsapp: enabled, defaultAgentId
 - signal: enabled, defaultAgentId

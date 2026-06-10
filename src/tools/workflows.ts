@@ -7,11 +7,95 @@ import { z } from 'zod';
 import type { ClientFactory } from '../server.js';
 import { findStepShape, listShapesForStepType, STEP_SHAPES } from '../step-shapes.js';
 
+function parseMetadata(metadata: any): Record<string, any> | null {
+    if (!metadata) return null;
+    if (typeof metadata === 'object') return metadata;
+    if (typeof metadata !== 'string') return null;
+
+    try {
+        const parsed = JSON.parse(metadata);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+function compactMetadataSummary(metadata: any) {
+    const parsed = parseMetadata(metadata);
+    if (!parsed) return undefined;
+
+    const summary: Record<string, any> = {};
+    if (parsed.analytics) summary.analytics = parsed.analytics;
+    if (parsed.workflowGraph) summary.workflowGraph = parsed.workflowGraph;
+    if (parsed.revision !== undefined) summary.revision = parsed.revision;
+    if (parsed.imports) summary.imports = parsed.imports;
+    if (parsed.builder?.preflight && typeof parsed.builder.preflight === 'object') {
+        const preflight = parsed.builder.preflight;
+        summary.builder = {
+            preflight: {
+                ...(preflight.status !== undefined ? { status: preflight.status } : {}),
+                ...(preflight.version !== undefined ? { version: preflight.version } : {}),
+                ...(preflight.contractHash !== undefined ? { contractHash: preflight.contractHash } : {}),
+                ...(preflight.appliedContractHash !== undefined ? { appliedContractHash: preflight.appliedContractHash } : {}),
+                ...(preflight.confidence !== undefined ? { confidence: preflight.confidence } : {}),
+                ...(preflight.updatedAt !== undefined ? { updatedAt: preflight.updatedAt } : {}),
+                ...(preflight.appliedAt !== undefined ? { appliedAt: preflight.appliedAt } : {}),
+                ...(Array.isArray(preflight.warnings) ? { warningCount: preflight.warnings.length } : {}),
+                ...(Array.isArray(preflight.blockers) ? { blockerCount: preflight.blockers.length } : {}),
+                ...(Array.isArray(preflight.missingRequiredIntegrations)
+                    ? { missingRequiredIntegrationCount: preflight.missingRequiredIntegrations.length }
+                    : {}),
+                ...(preflight.runReadiness && typeof preflight.runReadiness === 'object'
+                    ? { runReadiness: preflight.runReadiness }
+                    : {}),
+                ...(preflight.autoRepair && typeof preflight.autoRepair === 'object'
+                    ? {
+                        autoRepair: {
+                            status: preflight.autoRepair.status,
+                            attemptedAt: preflight.autoRepair.attemptedAt,
+                            remainingBlockingCount: preflight.autoRepair.remainingBlockingCount,
+                        },
+                    }
+                    : {}),
+                ...(preflight.lastError && typeof preflight.lastError === 'object'
+                    ? { lastError: { message: preflight.lastError.message, code: preflight.lastError.code } }
+                    : {}),
+            },
+        };
+    }
+
+    return Object.keys(summary).length ? summary : undefined;
+}
+
+function compactWorkflowListResult(result: any) {
+    if (!result || !Array.isArray(result.workflows)) return result;
+
+    return {
+        ...result,
+        workflows: result.workflows.map((workflow: any) => {
+            const metadataSummary = compactMetadataSummary(workflow.metadata);
+
+            return {
+                id: workflow.id,
+                name: workflow.name,
+                description: workflow.description,
+                pathname: workflow.pathname,
+                status: workflow.status,
+                goal: workflow.goal,
+                style: workflow.style,
+                ...(metadataSummary ? { metadataSummary } : {}),
+                createdAt: workflow.createdAt,
+                updatedAt: workflow.updatedAt,
+            };
+        }),
+    };
+}
+
 export function registerWorkflowTools(server: McpServer, clientFactory: ClientFactory) {
 
     server.tool(
         'list_workflows',
-        'List all workflows in the workspace. Returns id, name, status, goal for each.',
+        'List all workflows in the workspace. Returns compact workflow summaries plus small metadataSummary fields (analytics, workflowGraph, revision, imports, builder preflight state). Use get_workflow for full steps, context, raw metadata, full builder contract/compiler preview, and update history.',
         {
             status: z.string().optional().describe('Filter by status: draft, active, paused'),
             limit: z.number().optional().describe('Max results (default 50, max 200)'),
@@ -19,10 +103,11 @@ export function registerWorkflowTools(server: McpServer, clientFactory: ClientFa
         async ({ status, limit }, extra) => {
             const client = clientFactory(extra);
             const result = await client.listWorkflows({ status, limit });
+            const compactResult = compactWorkflowListResult(result);
             return {
                 content: [{
                     type: 'text' as const,
-                    text: JSON.stringify(result, null, 2),
+                    text: JSON.stringify(compactResult, null, 2),
                 }],
             };
         }

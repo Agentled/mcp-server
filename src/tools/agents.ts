@@ -40,7 +40,11 @@ export function registerAgentTools(server: McpServer, clientFactory: ClientFacto
         'list_agents',
         `List all agents in the workspace. Agents are higher-level entities that wrap
 proactive agents with instructions, files, and identity. They manage the lifecycle
-of always-on monitoring and can be chatted with.`,
+of always-on monitoring and can be chatted with.
+
+Each agent includes a channels array for currently reachable inbound channels:
+- email appears for every agent when the workspace email channel is enabled, with the derived per-agent address
+- Slack, WhatsApp, Signal, and Telegram appear only on the agent assigned as that channel's defaultAgentId`,
         {
             status: z.enum(['active', 'paused', 'draft']).optional().describe('Filter by status'),
         },
@@ -58,7 +62,7 @@ of always-on monitoring and can be chatted with.`,
 
     server.tool(
         'get_agent',
-        `Get full details of an agent including its config, files, and linked proactive agent.`,
+        `Get full details of an agent including its config, files, linked proactive agent, and assigned inbound channels.`,
         {
             id: z.string().describe('Agent ID'),
         },
@@ -77,6 +81,10 @@ of always-on monitoring and can be chatted with.`,
     server.tool(
         'create_agent',
         `Create a new agent with name, instructions, tools, workflows, and optional config files.
+
+The response includes channels for currently reachable inbound channels. Email is automatic per agent when
+the workspace email channel is enabled; use the returned email channel address rather than assigning a
+defaultAgentId for email.
 
 Agents are always 'chat-only' (conversational). For scheduled/autonomous work, create the agent
 first, then attach routines to it via create_routine (e.g. daily deal-sourcer, weekly digest).

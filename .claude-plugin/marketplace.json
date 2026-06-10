@@ -1,0 +1,21 @@
+{
+  "name": "agentled",
+  "description": "Official Agentled plugins — AI workflow automation with 100+ integrations, knowledge graph, and unified credits.",
+  "owner": {
+    "name": "Agentled",
+    "email": "contact@agentled.ai",
+    "url": "https://www.agentled.ai"
+  },
+  "plugins": [
+    {
+      "name": "agentled",
+      "source": "./plugins/agentled",
+      "description": "Build, manage, and execute Agentled AI workflows — bundles the Agentled skill and the @agentled/mcp-server MCP server. Requires AGENTLED_API_KEY (Workspace Settings > Developer).",
+      "author": {
+        "name": "Agentled"
+      },
+      "category": "productivity",
+      "homepage": "https://www.agentled.ai/en"
+    }
+  ]
+}

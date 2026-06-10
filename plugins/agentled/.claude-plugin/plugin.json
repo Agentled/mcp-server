@@ -1,0 +1,20 @@
+{
+  "name": "agentled",
+  "version": "0.18.0",
+  "description": "Build, manage, and execute Agentled AI workflows from Claude Code using the Agentled MCP server.",
+  "author": {
+    "name": "Agentled",
+    "url": "https://www.agentled.ai"
+  },
+  "homepage": "https://www.agentled.ai/en",
+  "repository": "https://github.com/Agentled/mcp-server",
+  "license": "MIT",
+  "keywords": [
+    "agentled",
+    "mcp",
+    "workflows",
+    "automation",
+    "ai-agents",
+    "knowledge-graph"
+  ]
+}

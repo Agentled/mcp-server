@@ -1,0 +1,46 @@
+{
+  "name": "agentled",
+  "version": "0.1.0+codex.20260602010056",
+  "description": "Build, manage, and execute Agentled AI workflows from Codex using the Agentled MCP server.",
+  "author": {
+    "name": "Agentled",
+    "url": "https://www.agentled.ai"
+  },
+  "homepage": "https://www.agentled.ai/en",
+  "repository": "https://github.com/Agentled/mcp-server",
+  "license": "MIT",
+  "keywords": [
+    "agentled",
+    "mcp",
+    "workflows",
+    "automation",
+    "ai-agents",
+    "knowledge-graph"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Agentled",
+    "shortDescription": "Build and run Agentled workflow automations",
+    "longDescription": "Agentled lets Codex create, validate, publish, run, and inspect AI workflow automations through the Agentled MCP server.",
+    "developerName": "Agentled",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://www.agentled.ai/en",
+    "privacyPolicyURL": "https://www.agentled.ai/en/privacy-policy",
+    "termsOfServiceURL": "https://www.agentled.ai/en/terms-of-use",
+    "defaultPrompt": [
+      "Create an Agentled workflow",
+      "Validate and publish my workflow",
+      "Inspect this Agentled execution"
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "screenshots": []
+  }
+}

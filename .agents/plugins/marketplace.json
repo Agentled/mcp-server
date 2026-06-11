@@ -1,0 +1,20 @@
+{
+  "name": "agentled",
+  "interface": {
+    "displayName": "Agentled"
+  },
+  "plugins": [
+    {
+      "name": "agentled",
+      "source": {
+        "source": "local",
+        "path": "./plugins/agentled"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

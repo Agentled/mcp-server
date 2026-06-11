@@ -1,7 +1,7 @@
 {
   "name": "agentled",
   "version": "0.1.0+codex.20260602010056",
-  "description": "Build, manage, and execute Agentled AI workflows from Codex using the Agentled MCP server.",
+  "description": "Continuous deployment of AI from Codex — deploy AI agents with routines, build their workflows and tools, monitor usage and feedback, and keep optimizing via the Agentled MCP server.",
   "author": {
     "name": "Agentled",
     "url": "https://www.agentled.ai"
@@ -21,8 +21,8 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Agentled",
-    "shortDescription": "Build and run Agentled workflow automations",
-    "longDescription": "Agentled lets Codex create, validate, publish, run, and inspect AI workflow automations through the Agentled MCP server.",
+    "shortDescription": "Continuous deployment of AI — deploy, monitor, and optimize AI agents",
+    "longDescription": "Agentled makes Codex your full-time forward-deployed engineer: deploy AI agents with scheduled routines, build the workflows and tools they run, and monitor executions, usage, and feedback to keep iterating and optimizing — all through the Agentled MCP server.",
     "developerName": "Agentled",
     "category": "Productivity",
     "capabilities": [

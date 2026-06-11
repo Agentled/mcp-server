@@ -1,6 +1,6 @@
 {
   "name": "agentled",
-  "description": "Official Agentled plugins — AI workflow automation with 100+ integrations, knowledge graph, and unified credits.",
+  "description": "Official Agentled plugins — continuous deployment of AI: deploy agents with routines, build their workflows and tools, monitor and optimize them. 100+ integrations, knowledge-graph memory, unified credits.",
   "owner": {
     "name": "Agentled",
     "email": "contact@agentled.ai",
@@ -10,7 +10,7 @@
     {
       "name": "agentled",
       "source": "./plugins/agentled",
-      "description": "Build, manage, and execute Agentled AI workflows — bundles the Agentled skill and the @agentled/mcp-server MCP server. Requires AGENTLED_API_KEY (Workspace Settings > Developer).",
+      "description": "Continuous deployment of AI — Claude becomes your full-time forward-deployed engineer: deploy AI agents with routines, build their workflows and tools, monitor usage and feedback, and keep optimizing. Bundles the Agentled skill + @agentled/mcp-server. Requires AGENTLED_API_KEY (Workspace Settings > Developer).",
       "author": {
         "name": "Agentled"
       },

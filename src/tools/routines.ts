@@ -33,16 +33,47 @@ function normalizeBaseUrl(baseUrl?: string): string {
     return (baseUrl || DEFAULT_AGENTLED_URL).replace(/\/+$/, '');
 }
 
-function inferWorkspaceSlug(agentEntityId?: unknown, fallback?: string): string | undefined {
+/**
+ * Last-resort guess of the workspace slug from an `agentEntityId` of the form
+ * `<agent-slug>@<namespace>`.
+ *
+ * ⚠️ The `@<namespace>` suffix is the AGENT's namespace, NOT the workspace slug.
+ * They coincide for some workspaces (e.g. `revenue-operator@agentled-ops`) but
+ * diverge for others (e.g. `content-manager@agentled` lives in workspace
+ * `agentled-ops`). Only used when no configured workspace slug is available,
+ * because a wrong slug is still better than no link at all.
+ */
+function inferWorkspaceSlugFromAgent(agentEntityId?: unknown): string | undefined {
     if (typeof agentEntityId === 'string') {
         const atIndex = agentEntityId.lastIndexOf('@');
         if (atIndex >= 0 && atIndex < agentEntityId.length - 1) {
             return agentEntityId.slice(atIndex + 1);
         }
     }
-    return fallback || undefined;
+    return undefined;
 }
 
+/**
+ * The agent's slug is the part BEFORE the `@` in `<agent-slug>@<namespace>`
+ * (e.g. `content-manager@agentled` → `content-manager`). The agent-activity
+ * route is keyed by this slug, not the full entity id.
+ */
+function agentSlugFromEntityId(agentEntityId?: string): string | undefined {
+    if (!agentEntityId) return undefined;
+    const atIndex = agentEntityId.indexOf('@');
+    const slug = atIndex > 0 ? agentEntityId.slice(0, atIndex) : agentEntityId;
+    return slug || undefined;
+}
+
+/**
+ * Build the URL that actually shows a routine's run output: the agent activity
+ * page. A specific run deep-links to the activity-detail route
+ * (`/agents/<slug>/activity/<agent-routine:routineId:runId>`); without a run id
+ * we point at the agent's activity list (`/agents/<slug>/activity`).
+ *
+ * NOT the inbox — that route opens a new reply draft and renders
+ * "No conversation selected" for a routine link.
+ */
 function buildRoutineActivityUrl(params: {
     baseUrl?: string;
     workspaceSlug?: string;
@@ -51,15 +82,16 @@ function buildRoutineActivityUrl(params: {
     routineRunId?: string;
 }): string | undefined {
     if (!params.workspaceSlug) return undefined;
+    const agentSlug = agentSlugFromEntityId(params.agentEntityId);
+    if (!agentSlug) return undefined;
 
-    const query = new URLSearchParams();
-    if (params.agentEntityId) query.set('agentId', params.agentEntityId);
-    query.set('new', '1');
-    query.set('collapseInbox', '1');
-    query.set('routineId', params.routineId);
-    if (params.routineRunId) query.set('routineRunId', params.routineRunId);
+    const base = `${normalizeBaseUrl(params.baseUrl)}/en/${encodeURIComponent(params.workspaceSlug)}/agents/${encodeURIComponent(agentSlug)}/activity`;
 
-    return `${normalizeBaseUrl(params.baseUrl)}/en/${encodeURIComponent(params.workspaceSlug)}/inbox?${query.toString()}`;
+    if (params.routineRunId) {
+        const activityId = `agent-routine:${params.routineId}:${params.routineRunId}`;
+        return `${base}/${encodeURIComponent(activityId)}`;
+    }
+    return base;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -75,12 +107,20 @@ function decorateRoutineWithUrls<T extends Record<string, unknown>>(routine: T, 
     if (!routineId) return { ...routine };
 
     const agentEntityId = typeof routine.agentEntityId === 'string' ? routine.agentEntityId : undefined;
-    const workspaceSlug = inferWorkspaceSlug(agentEntityId, context.workspaceSlug);
+    // Prefer the configured workspace slug (AGENTLED_WORKSPACE); only fall back to
+    // the agent-namespace guess when none is configured. The `@<namespace>` suffix
+    // is NOT a reliable workspace slug — see inferWorkspaceSlugFromAgent.
+    const workspaceSlug = context.workspaceSlug || inferWorkspaceSlugFromAgent(agentEntityId);
+    // When the API returns the latest run, deep-link straight to its
+    // activity-detail page; otherwise link the agent's activity list.
+    const latestRun = objectValue(routine.latestRun);
+    const latestRunId = typeof latestRun.id === 'string' ? latestRun.id : undefined;
     const activityUrl = buildRoutineActivityUrl({
         baseUrl: context.baseUrl,
         workspaceSlug,
         agentEntityId,
         routineId,
+        routineRunId: latestRunId,
     });
 
     const decorated: Record<string, unknown> = { ...routine };
@@ -160,10 +200,8 @@ Pass the agent's slug (e.g. "dealflow") or ID as \`agent_id\`.`,
         },
         async ({ agent_id }, extra) => {
             const client = clientFactory(extra);
-            const result = await client.listRoutines(agent_id);
-            const decorated = decorateRoutineResponseWithUrls(result, routineUrlContext({
-                workspaceSlug: inferWorkspaceSlug(agent_id),
-            }));
+            const result = await client.listRoutines(agent_id, { includeLatestRun: true });
+            const decorated = decorateRoutineResponseWithUrls(result, routineUrlContext());
             return {
                 content: [{
                     type: 'text' as const,
@@ -207,9 +245,7 @@ Use skillIds from list_agent_skills for routine-level skill overrides.`,
                 maxCreditsPerDay: max_credits_per_day,
                 skillIds,
             });
-            const decorated = decorateRoutineResponseWithUrls(result, routineUrlContext({
-                workspaceSlug: inferWorkspaceSlug(agent_id),
-            }));
+            const decorated = decorateRoutineResponseWithUrls(result, routineUrlContext());
             return {
                 content: [{
                     type: 'text' as const,

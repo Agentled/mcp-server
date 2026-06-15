@@ -6,6 +6,10 @@
  * Usage:
  *   npx @agentled/mcp-server --setup-skills          # project-level (.claude/skills/)
  *   npx @agentled/mcp-server --setup-skills --global  # global (~/.claude/skills/)
+ *
+ * If the Agentled Claude Code plugin is installed it already bundles these
+ * skills (namespaced agentled:*) — this script detects that and refuses to
+ * double-register unless --force is passed.
  */
 
 import { existsSync, mkdirSync, cpSync, readdirSync } from 'fs';
@@ -24,6 +28,18 @@ const targetBase = isGlobal
 
 if (!existsSync(sourceDir)) {
     console.error('Skills directory not found at', sourceDir);
+    process.exit(1);
+}
+
+// The Claude Code plugin (`/plugin install agentled@agentled`) bundles the same
+// skills. Installing copies here too would register each skill twice (e.g.
+// `agentled` and `agentled:agentled`) with potentially different versions.
+const pluginInstallDir = join(homedir(), '.claude', 'plugins', 'cache', 'agentled', 'agentled');
+if (existsSync(pluginInstallDir) && !process.argv.includes('--force')) {
+    console.warn('⚠ The Agentled Claude Code plugin is already installed — it bundles these skills.');
+    console.warn('  Installing them again via --setup-skills would register each skill twice.');
+    console.warn('  Keep the plugin (recommended), or uninstall it first: /plugin uninstall agentled@agentled');
+    console.warn('  To install copies anyway, rerun with --force.');
     process.exit(1);
 }
 

@@ -701,6 +701,84 @@ Use `connected_emails_selector_multiple` for `fromEmail` only when the user expl
 - For report notifications, create a share URL and include that URL in the email instead of copying the full report into the email body
 - Set an output page `displayConfig.executionNameTemplate` that names the entity and the outreach state. For single-entity outreach, use `{{entityName}} - Email Drafted` before approval and `{{entityName}} - Email Sent` or `{{entityName}} - Contacted` after the post-send status step, e.g. `Joe Dan - VC Firm Name - Email Drafted`; add `{{today}}` only when a short date helps. For batch runs, summarize counts instead, e.g. `26 May - 4 sourced - 3 contacted`.
 
+### Delegated Approval (agent-approved outreach)
+
+Opt-in extension of the composed email pattern: an assigned workspace agent (AgentEntity)
+auto-approves approval-gated `schedule-email` drafts against an explicit policy, escalating
+anything uncertain to the normal human approval UI. Human approval stays the default.
+Full reference: `docs/DELEGATED_APPROVAL.md` in the main repo (runtime:
+`shared/services/pipeline/delegatedApprovalRuntime.ts`, checks:
+`shared/services/pipeline/delegatedApprovalPolicy.ts`).
+
+**Step-level `approvalPolicy`** (set via `update_step`; step wins over workflow-level; only
+`agent-delegated` is runnable — `agent-autopilot` is typed but silently falls through to human):
+
+```json
+{
+  "approvalPolicy": {
+    "mode": "agent-delegated",
+    "agentId": "<agent-entity-id>",
+    "confidenceThreshold": 0.9,
+    "disabled": false,
+    "guardrails": {
+      "requireKnownRecipient": true,
+      "blockIfAlreadyContacted": true,
+      "blockIfUnsubscribed": true,
+      "requireSenderConfigured": true,
+      "requireScheduleWindow": true,
+      "allowedSegments": ["startup-founder"],
+      "maxEmailsPerCompany": 1,
+      "minimumScheduleDelayMinutes": 15
+    }
+  }
+}
+```
+
+⚠️ **NEVER set `maxDailyAutoApprovals` / `requireHumanForFirstN` / `sampleHumanAuditRate`** —
+the runtime passes only `{ now }` as policy state, so they are NOT enforced, and
+`requireHumanForFirstN > 0` blocks every draft forever. Kill switch: `"disabled": true`.
+
+**Reviewer agent requirements** — the agent named by `agentId` must be **`status: "active"`**
+(use `activate_agent`), in the workflow's workspace, with the workflow id in its
+**`assignedWorkflowIds`** (use `manage_agent_workflows`). Any miss → the draft stays pending
+for a human, with an audit participant explaining why. Set `agentId` explicitly; implicit
+resolution requires exactly ONE active assigned agent and breaks when a second is assigned.
+
+**responseStructure contract** — the draft step must emit, **top-level** (siblings of
+`email`, not nested inside it):
+
+```json
+{
+  "email": { "to": "...", "subject": "...", "body": "...", "bodyType": "html" },
+  "recipient": { "email": "{{...}}", "segment": "...", "alreadyContacted": false, "unsubscribed": false },
+  "scheduledTime": "ISO timestamp (>= now + minimumScheduleDelayMinutes)",
+  "delegatedApprovalReview": {
+    "decision": "approve | escalate | reject",
+    "confidence": "number 0-1",
+    "rationale": "string",
+    "reviewerAgentEntityId": "<agent-entity-id>",
+    "checks": [{ "id": "tone", "status": "pass | fail | warn", "detail": "..." }]
+  }
+}
+```
+
+`reviewerAgentEntityId` must be the **hardcoded literal agent entity id** — the runtime does
+an exact-match provenance check against the resolved agent
+(`shared/services/pipeline/delegatedApprovalRuntime.ts`); an LLM-invented or unresolved id
+escalates every draft.
+
+Key behaviors: the evaluation fires **once**, when the timeline first goes pending
+(`pendingReasonTag: "APPROVAL_GATE"`) — never retroactively, so enabling the policy does not
+approve already-pending drafts. Any `fail` **or `warn`** check escalates. Approval routes
+through the same `schedule-email` continuation as human approval; every attempt writes
+`delegatedApproval: true` audit metadata + a timeline participant with the full check list
+and a policy snapshot.
+
+Working production reference: AngelHive Startup Outreach workflow
+`2e1cdd60-2fcf-441a-856f-583ae76b38a5`, step `send_email` (config v1.10) — inspect with
+`get_step` from an AngelHive-scoped session; quoted in `docs/DELEGATED_APPROVAL.md` →
+"Canonical example".
+
 ## Top Apps Quick Reference
 
 | App | Action | Credits | Key Inputs |

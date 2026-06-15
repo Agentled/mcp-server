@@ -86,6 +86,8 @@ export AGENTLED_API_KEY=wsk_...
 
 The plugin bundles the `agentled` skill (workflow-authoring guidance, namespaced `agentled:agentled`) and auto-starts the MCP server via `npx -y @agentled/mcp-server`. The same plugin directory also carries the Codex manifest (`.codex-plugin/`) — one bundle, both hosts.
 
+> **Pick one install path, not both.** If you previously ran `claude mcp add agentled ...` or `--setup-skills`, remove those before (or instead of) installing the plugin — otherwise you get two identical MCP server processes and the skill registered twice. Cleanup: `claude mcp remove agentled` and delete `.claude/skills/agentled/` (or `~/.claude/skills/agentled/`). `--setup-skills` now detects an installed plugin and refuses to double-register unless you pass `--force`.
+
 To develop the plugin locally:
 
 ```bash

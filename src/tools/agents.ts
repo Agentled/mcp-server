@@ -1,7 +1,7 @@
 /**
  * MCP Tools — Agent Entities
  *
- * Higher-level agents that wrap proactive agents with instructions, files, and identity.
+ * Workspace agents with instructions, files, identity, chat, and attached routines.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -38,9 +38,9 @@ export function registerAgentTools(server: McpServer, clientFactory: ClientFacto
 
     server.tool(
         'list_agents',
-        `List all agents in the workspace. Agents are higher-level entities that wrap
-proactive agents with instructions, files, and identity. They manage the lifecycle
-of always-on monitoring and can be chatted with.
+        `List all agents in the workspace. Agents are workspace identities with
+instructions, files, assigned workflows, chat, and optional attached routines for
+scheduled/autonomous work.
 
 Each agent includes a channels array for currently reachable inbound channels:
 - email appears for every agent when the workspace email channel is enabled, with the derived per-agent address
@@ -62,7 +62,7 @@ Each agent includes a channels array for currently reachable inbound channels:
 
     server.tool(
         'get_agent',
-        `Get full details of an agent including its config, files, linked proactive agent, and assigned inbound channels.`,
+        `Get full details of an agent including its config, files, attached routines, and assigned inbound channels.`,
         {
             id: z.string().describe('Agent ID'),
         },
@@ -256,7 +256,7 @@ Response includes \`diff: { addedPaths, changedPaths, removedPaths }\` and \`war
 
     server.tool(
         'delete_agent',
-        `Permanently delete an agent and all its files. Also deletes the linked proactive agent.`,
+        `Permanently delete an agent and all its files. Attached routines are also removed by the API.`,
         {
             id: z.string().describe('Agent ID'),
         },

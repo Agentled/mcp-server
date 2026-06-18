@@ -477,7 +477,7 @@ Pick the right type — `validate_workflow` will reject the wrong one:
 | Live web search, workspace memory recall/write, knowledge-graph lookup | `aiActionWithTools` with the matching `builtinType` |
 | The AI to decide at runtime what inputs to pass to an app action | `aiActionWithTools` with an `appActionConfig` tool |
 
-**`aiActionWithTools` requires at least one tool** — placed under `step.tools` **or** `step.agent.tools` (both are merged at runtime). If you omit tools from both locations, `validate_workflow` returns a blocker `AI_STEP_TOOLS_REQUIRED`. If the prompt says "search the web" / "recall memory" / "knowledge graph" without the matching tool attached, you get a warning `AI_STEP_TOOL_PROMPT_MISMATCH`.
+**`aiActionWithTools` requires at least one tool** — placed under `step.tools` **or** `step.agent.tools` (both are merged at runtime). If you omit tools from both locations, `validate_workflow` returns a blocker `AI_STEP_TOOLS_REQUIRED`. If the prompt says "search the web" / "recall memory" / "knowledge graph" without the matching tool attached, you get a warning `AI_STEP_TOOL_PROMPT_MISMATCH`: web-search prompts need `web_search`; memory prompts need `workspace_memory`; KG lookup prompts need `kg_search` or `kg_traverse`. `fetch_website_content` fetches a known URL and `kg_write` writes KG data, so neither satisfies those lookup/search prompts.
 
 Valid `builtinType` values: `web_search`, `file_search`, `code_interpreter`, `fetch_website_content`, `kg_search`, `kg_traverse`, `kg_nodes`, `kg_write`, `workspace_memory`.
 
@@ -665,14 +665,16 @@ Read access is implicit and never requires approval. The internal `agentled` app
 | `update_routine` | Update routine fields; recalculates nextRunAt if interval changes |
 | `pause_routine` | Pause a routine |
 | `resume_routine` | Resume a paused routine |
+| `trigger_routine` | Run a routine immediately without changing its schedule |
 | `delete_routine` | Permanently delete a routine |
 
 Interval values: `weekday-morning`, `weekday-evening`, `weekly-monday`, `weekly-tuesday-evening`, `weekly-friday-evening`, `daily`, `monthly`, `6h`, `48h`.
 
-#### Proactive Agents (deprecated low-level runtime)
+#### Deprecated Low-Level Runtime
 
-Direct ProactiveAgent MCP tools are deprecated and no longer registered. Use
-`create_agent` / `update_agent` plus routines for new autonomous work.
+Direct low-level monitor-runtime MCP tools are deprecated and no longer
+registered. Use `create_agent` / `update_agent` plus routines for autonomous
+work.
 
 ### Channels (Email, Slack, WhatsApp, Signal)
 
@@ -855,69 +857,62 @@ PCPL = prospects contacted / positive replies
 
 Use `analyticsConfig` for contacted prospects, positive replies, and PCPL. Literal PCPL should use a `ratio` metric with `ratioMode: "raw"`; positive reply rate should use the default percentage ratio.
 
-## Proactive Agents — Examples
+## Routines — Examples
 
-Proactive agents are background monitors that autonomously trigger workflows when conditions are met.
+Routines are scheduled prompts attached to agents. Use them for autonomous work
+such as daily checks, weekly digests, and workflow follow-up.
 
-### Create an agent that watches for new leads
-
-```
-"Create a proactive agent named 'New Lead Watcher' that checks the 'incoming-leads' knowledge list
-every 5 minutes. When new rows appear, start the 'lead-enrichment' workflow with the new rows as input.
-Limit to 10 actions per day."
-```
-
-Config structure:
-
-```json
-{
-  "monitorInterval": "5m",
-  "evaluation": { "mode": "rules" },
-  "monitors": [{
-    "type": "kg_list",
-    "listKey": "incoming-leads",
-    "condition": "new_rows"
-  }],
-  "actions": [{
-    "type": "start_workflow",
-    "workflowId": "wf_abc123",
-    "inputMapping": { "leads": "{{monitor.newRows}}" }
-  }],
-  "maxActionsPerDay": 10,
-  "cooldownMs": 300000
-}
-```
-
-### Create an AI-evaluated agent
+### Create an agent with a daily sourcing routine
 
 ```
-"Create a proactive agent that checks execution history every hour.
-Use AI evaluation to decide if the failure rate is abnormal, then notify me via email."
+"Create a deal sourcing agent, then add a daily routine that checks the
+incoming-leads knowledge list and starts the lead-enrichment workflow for
+qualified new rows. Limit the routine to 10 workflow starts per day."
 ```
 
-```json
-{
-  "monitorInterval": "1h",
-  "evaluation": { "mode": "ai", "modelTier": "mini", "maxCreditsPerDay": 50 },
-  "monitors": [{
-    "type": "execution_history",
-    "condition": "consecutive_failures",
-    "threshold": 3
-  }],
-  "actions": [{
-    "type": "notify",
-    "channel": "email",
-    "message": "{{monitor.summary}}"
-  }],
-  "maxActionsPerDay": 5
-}
+Tool sequence:
+
+```
+create_agent({
+  name: "Daily Deal Sourcer",
+  agentType: "deal-sourcer",
+  enabledApps: ["agentled", "kg"],
+  assignedWorkflowIds: ["wf_abc123"],
+  activate: true
+})
+
+create_routine({
+  agent_id: "<agent-id-or-slug>",
+  name: "Daily New Lead Review",
+  prompt: "Review incoming-leads, identify qualified new rows, and start the lead-enrichment workflow for each. Do not start more than 10 workflow runs in one day.",
+  interval: "daily",
+  max_steps_per_run: 20,
+  max_credits_per_day: 50
+})
+```
+
+### Create a weekly workflow health routine
+
+```
+"Add a weekly routine to the operations agent that reviews workflow execution
+history, flags abnormal failures, and notifies me only when action is needed."
+```
+
+```
+create_routine({
+  agent_id: "operations",
+  name: "Weekly Workflow Health Review",
+  prompt: "Review recent workflow execution history. If failures or stalls require action, summarize the affected workflows, likely impact, and recommended next step. Otherwise record that no action is needed.",
+  interval: "weekly-monday"
+})
 ```
 
 ### Pause and resume
 
 ```
-"Pause proactive agent pa_xyz789"
-"Resume proactive agent pa_xyz789"
+"Pause routine <routine-id>"
+"Resume routine <routine-id>"
+"Run routine <routine-id> now"
 ```
 
 ## Works With

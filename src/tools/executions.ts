@@ -110,10 +110,12 @@ Mock control: by default, steps that have mock data configured (\`step.mock.enab
 The executionContent field maps stepId -> step output data.
 Use this to inspect what a workflow produced, debug failures, or check intermediate results.
 
-executionId must be the PipelineExecution id, not executionInputId. If start_workflow returned only executionInputId, first call list_executions and match pipelineExecutionInputId to find the execution id.`,
+executionId must be the PipelineExecution id, not executionInputId. If start_workflow returned only executionInputId, first call list_executions and match pipelineExecutionInputId to find the execution id.
+
+When sharing a step-specific run with a human, use /runs?runId=<executionId>&step=<workflowStepId>. Do not send a run-only URL and ask the human to open an approval/output/failure/current step manually.`,
         {
             workflowId: z.string().describe('The workflow ID'),
-            executionId: z.string().describe('The execution ID. UI run deep links use /runs?runId=<executionId>&step=<stepId>, where step is optional.'),
+            executionId: z.string().describe('The execution ID. UI run deep links use /runs?runId=<executionId>&step=<stepId>. Include step when the handoff targets a specific workflow step.'),
         },
         async ({ workflowId, executionId }, extra) => {
             const client = clientFactory(extra);
@@ -129,7 +131,7 @@ executionId must be the PipelineExecution id, not executionInputId. If start_wor
 
     server.tool(
         'list_timelines',
-        `List timelines (step execution records) for a specific execution. Each timeline represents a step that ran, with its status, output, and metadata. Use this to inspect individual step results, debug failures, or see the execution flow.
+        `List timelines (step execution records) for a specific execution. Each timeline represents a step that ran, with its status, output, and metadata. Use this to inspect individual step results, debug failures, or see the execution flow. When sharing a specific timeline/approval/output/failure with a human, use /runs?runId=<executionId>&step=<workflowStepId>; the step value is the workflow step id from these records, not the timeline id.
 
 To debug the actual prompt used for a step in an execution, find that step's timeline here, then call get_timeline and inspect metadata.computedPrompt. get_step only shows the configured prompt template, not the resolved execution prompt.`,
         {
@@ -399,8 +401,8 @@ If no timelineId is provided, the most recent timeline for that step is automati
     //    when the upstream AI-step output came out wrong (e.g. malformed
     //    `email.to` shape blocking the send). Without this you'd have to
     //    rerun the entire AI step and re-burn its credits.
-    //  - `patch_execution_fields` is mainly for relabeling a stuck or test
-    //    run's `executionName` to disambiguate it after the fact, or
+    //  - `patch_execution_fields` is mainly for relabeling a stuck, completed,
+    //    or test run's `executionName` to disambiguate it after the fact, or
     //    advancing an execution out of `waiting`/`failed` into `running` for
     //    manual recovery.
     //
@@ -409,12 +411,14 @@ If no timelineId is provided, the most recent timeline for that step is automati
 
     server.tool(
         'patch_timeline_fields',
-        `Surgically edit a pending approval timeline's eventContent or metadata fields without rerunning the upstream step.
+        `Surgically edit a timeline's eventSummary, pending approval eventContent, or metadata fields without rerunning the upstream step. Terminal eventSummary-only relabels do not require confirmTimelineId; other terminal repairs require exact-ID confirmation.
 
 EXCEPTION-ONLY tool. Use cases:
   - Fix a malformed email.to / subject / body in a pending email-draft step (no need to re-run the LLM)
+  - Relabel a terminal timeline's eventSummary so the timeline row matches confirmed outcome, similar to metadata.executionName relabels on executions
   - Update metadata.pendingReasonTag for UI annotation
   - Recover a failed timeline back to pending (status transition: failed → pending)
+  - Repair corrupted eventContent on a completed/approved/rejected terminal timeline after an incident, only when rerun/retry would duplicate side effects or lose canonical output
 
 DO NOT use for day-to-day data fixes — most edits should happen by re-running the step or updating the workflow definition. This tool exists for incident response, not regular workflow operation.
 
@@ -422,18 +426,36 @@ Required:
   - API key with admin:patch scope (Stage 2 — without it returns 403 FORBIDDEN_SCOPE)
   - reason: non-empty string (≤500 chars), persisted in the audit row
   - expectedUpdatedAt: timeline.updatedAt from a fresh read — guards against lost-update races
+  - confirmTimelineId: required for terminal records except eventSummary-only relabels; must be the exact timeline ID being patched
+
+Allowed paths (any non-terminal status):
+  - eventSummary
+  - metadata.pendingReasonTag
 
 Allowed paths (status === 'pending'):
+  - eventSummary
   - eventContent  (wholesale replace; reserved keys _* rejected)
   - eventContent.email.subject | body | bodyType | to | cc | bcc
   - eventContent.<any>  (any AI-output field, except _*-prefixed reserved keys)
   - metadata.pendingReasonTag
-  - status  (only failed → pending)
+  - status  (pending → completed)
+
+Allowed paths (failed status):
+  - status  (failed → pending)
+
+Allowed paths (terminal without confirmTimelineId):
+  - eventSummary only
+
+Allowed paths (terminal + confirmTimelineId exact timeline id):
+  - eventSummary
+  - eventContent and eventContent.<any>, except reserved keys and provider send-result fields
+  - eventContent.email.subject | body | bodyType | to | cc | bcc
+  - metadata.pendingReasonTag
 
 Forbidden:
   - Any path containing an underscore-prefixed segment (_timelineId, _metadata, _pointer, _continuation, etc. — runtime-internal markers)
-  - Any write to a completed/approved/rejected timeline
-  - Identity fields, provider send results, audit fields
+  - Terminal timeline writes except eventSummary-only relabels, unless confirmTimelineId exactly matches the target timeline id
+  - Identity fields, provider send results (sendResult/messageId/threadId/sentAt/postId/postUrl/commentId/mediaId/permalink), audit fields
 
 Returns: { patched, dryRun, auditId, diff: [{path, before, after}], record }
 On error: { error, code, path? }  — codes: FORBIDDEN_SCOPE | FORBIDDEN_PATH | FORBIDDEN_TRANSITION | INVALID_VALUE | NOT_FOUND | CONCURRENCY_CONFLICT | STATUS_MISMATCH | PRECONDITION_FAILED`,
@@ -443,22 +465,23 @@ On error: { error, code, path? }  — codes: FORBIDDEN_SCOPE | FORBIDDEN_PATH | 
             timelineId: z.string().describe('The timeline ID being patched'),
             reason: z.string().min(1).max(500).describe('Why this patch is needed; persisted in the audit record'),
             expectedUpdatedAt: z.string().describe('The timeline\'s current updatedAt (ISO). Required for optimistic concurrency.'),
+            confirmTimelineId: z.string().optional().describe('Required for terminal timeline records except eventSummary-only relabels; must exactly match timelineId. Omit for normal pending/non-terminal patches.'),
             patches: z.array(z.object({
                 op: z.literal('replace'),
-                path: z.string().describe('Dot-path: e.g. "eventContent.email.subject"'),
+                path: z.string().describe('Dot-path: e.g. "eventSummary" or "eventContent.email.subject"'),
                 value: z.any(),
                 expectedCurrentValue: z.any().optional().describe('Optional: reject if current value differs (defensive precondition)'),
             })).min(1).describe('Array of replace operations (at most 12)'),
             dryRun: z.boolean().optional().describe('Compute diff without writing or auditing. Default false.'),
         },
-        async ({ workflowId, executionId, timelineId, reason, expectedUpdatedAt, patches, dryRun }, extra) => {
+        async ({ workflowId, executionId, timelineId, reason, expectedUpdatedAt, confirmTimelineId, patches, dryRun }, extra) => {
             const validated = validateAndNormalizePatches(patches);
             if (!validated.ok) {
                 return { content: [validated.errorPayload] };
             }
             const client = clientFactory(extra);
             const result = await client.patchTimeline(workflowId, executionId, timelineId, {
-                reason, expectedUpdatedAt, patches: validated.normalized, dryRun,
+                reason, expectedUpdatedAt, confirmTimelineId, patches: validated.normalized, dryRun,
             });
             return {
                 content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
@@ -470,7 +493,7 @@ On error: { error, code, path? }  — codes: FORBIDDEN_SCOPE | FORBIDDEN_PATH | 
         'patch_execution_fields',
         `Surgically edit a PipelineExecution's metadata, currentStepId, or status without re-running the workflow.
 
-EXCEPTION-ONLY tool. Primary use case: relabeling a stuck or test run's executionName so it's distinguishable in the executions list, without spending credits on a rerun. Other use cases:
+EXCEPTION-ONLY tool. Primary use case: relabeling a stuck, completed, or test run's executionName so it's distinguishable in the executions list, without spending credits on a rerun. Other use cases:
   - Update metadata.debugNote during incident investigation
   - Update metadata.pendingReasonTag for UI annotation
   - Advance currentStepId for stuck-state recovery (only when status is waiting or failed)
@@ -489,10 +512,14 @@ Allowed paths:
   - currentStepId  (only when status is waiting or failed)
   - status  (only waiting → running, failed → running, credits_missing → running, started → stopped/canceled)
 
+Terminal execution exception:
+  - completed/canceled/approved/stopped executions may patch only metadata.executionName
+  - terminal writes to metadata.debugNote, metadata.pendingReasonTag, currentStepId, status, or mixed batches are rejected
+
 Forbidden:
   - Wholesale metadata replacement (must use sub-paths)
   - Analytics totals (totalCreditsUsed, creditsUsed, analyticsExtracted, etc. — anything not in the allowlist)
-  - Identity fields, executionContent, completedAt, terminal-status executions
+  - Identity fields, executionContent, completedAt, terminal-status writes outside the metadata.executionName exception
 
 Audit: each patch appends an entry to metadata.adminPatchLog with { actor, apiKeyId, reason, diffs, timestamp }. This is the §8.1 short-term storage location — sufficient for the exception-only use case.
 

@@ -24,6 +24,7 @@ import { registerRoutineTools } from './tools/routines.js';
 import { registerFormTools } from './tools/forms.js';
 import { registerAgentSkillTools } from './tools/agent-skills.js';
 import { registerAiBuilderTools } from './tools/ai-builders.js';
+import { registerUseCaseTools } from './tools/use-cases.js';
 import { registerAppResources } from './resources/apps.js';
 import { registerWorkflowResources } from './resources/workflows.js';
 
@@ -93,6 +94,7 @@ export function createServer(): McpServer {
     registerFormTools(server, clientFactory);
     registerAgentSkillTools(server, clientFactory);
     registerAiBuilderTools(server, clientFactory);
+    registerUseCaseTools(server, clientFactory);
 
     // Register resources
     registerAppResources(server, clientFactory);

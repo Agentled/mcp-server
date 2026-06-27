@@ -116,7 +116,8 @@ export function registerWorkflowTools(server: McpServer, clientFactory: ClientFa
     server.tool(
         'get_workflow',
         `Get full details of a workflow including all steps, context, metadata, and configuration.
-Also returns hasDraftSnapshot (boolean) and draftSnapshot summary if a draft exists for a live workflow.`,
+Also returns hasDraftSnapshot (boolean) and draftSnapshot summary if a draft exists for a live workflow.
+When available, useCaseContext links the workflow to its WorkspaceUseCase and operating-guide README commands. Read the linked use case and guide before making workflow-specific claims or edits; missing-guide warnings mean context is incomplete.`,
         {
             workflowId: z.string().describe('The workflow ID'),
         },
@@ -257,30 +258,34 @@ When proposing one of these, ask "do you already have a <service> account connec
 
 ## Multi-Workflow Architecture (Source → KG → Process)
 
+Before building a multi-workflow goal, call \`list_use_cases\` or \`get_use_case\`; reuse matching \`workflowGraphId\`, KG refs, agents, and workflows. Tag new bundles with \`metadata.workflowGraph.id\`.
+
+For a new multi-source/shared-tail goal, call \`preview_use_case_kit\` first and review its dry-run operations with the user. If the ask fits Source -> KG -> Process, **do not hand-roll** N disconnected \`create_workflow\` calls from scratch.
+
 When the user wants to "find leads", "source startups", "build a list to act on later", or run anything on a recurring cadence that produces entities to act on, **do not build one monolithic workflow**. Build several:
 
 1. **One sourcing workflow per channel/theme** (e.g. "LinkedIn cybersecurity startups", "YC W25 batch", "ProductHunt this week"). Each runs on its own schedule and writes to a **shared KG list** via \`kg.upsert-rows\` with: \`userKey\` = stable id (URL/domain/LinkedIn URL) for O(1) dedup across runs; \`status: "new"\` to mark rows for downstream processing; \`mergeStrategy: "merge"\` so fields added later (scores, outreach status) survive re-upserts.
 2. **One orchestrator/qualifier workflow** that runs on its own cadence (e.g. weekly), reads \`kg.read-list({ filters: { status: "new" } })\`, qualifies/scores each row against the current theme, then either dispatches to outreach or marks \`status: "qualified" / "rejected"\`.
 3. **One outreach workflow** (often a child workflow called via \`agentled.call-workflow\`) that the orchestrator invokes for qualified rows.
 
-Why split: sourcing cadences vary per channel, qualification criteria change per theme, outreach is approval-gated — combining them into one pipeline couples concerns that should evolve independently. Multiple sourcing workflows converging on one \`listKey\` is the canonical pattern.
+Why split: sourcing cadences, qualification criteria, and approval-gated outreach evolve independently. Multiple sourcing workflows converging on one \`listKey\` is the canonical pattern.
 
-When proposing this to the user, suggest the split explicitly ("I'll build N sourcing workflows + 1 qualifier + 1 outreach") rather than offering a single mega-workflow.
+Suggest the split explicitly ("N sourcing workflows + 1 qualifier + 1 outreach") instead of a mega-workflow.
 
 ## Build incrementally — two first, then refactor, then the rest
 
-When the plan calls for many sourcing workflows (or any N near-identical workflows), **do not build all N upfront**. Build two first, ship them end-to-end, then look at what's actually shared — most often the *tail*: normalize → kg.upsert-rows (with userKey + status: "new" + mergeStrategy: "merge") → milestone. Sometimes also the head: read theme/criteria from a config knowledge list.
+When the plan calls for many sourcing workflows (or any N near-identical workflows), **do not build all N upfront**. Build two first, ship them end-to-end, then extract what is actually shared — most often the *tail*: normalize → kg.upsert-rows (with userKey + status: "new" + mergeStrategy: "merge") → milestone.
 
 Once the shared shape is clear:
 1. Extract the common tail into a **child workflow** (terminal \`return\` step, \`context.executionInputConfig.internal: true\`) and have the two existing sourcing workflows call it via \`agentled.call-workflow\`.
 2. Validate + run the two pilots end-to-end on the shared tail.
 3. *Then* build the remaining sourcing workflows on top of that shared tail — they become small (just the source-specific search/scrape/extract head, then call the shared tail).
 
-Why: building all N at once locks in mistakes and triples rework when the shared bits change. Two pilots surface the real shared shape; refactoring before scaling means workflows 3..N are short, consistent, and cheap to add. Don't pre-extract a child workflow before the second pilot exists — premature abstraction guesses wrong about what's actually shared.
+Why: two pilots surface the real shared shape; refactoring before scaling keeps workflows 3..N short and consistent. Don't pre-extract a child workflow before the second pilot exists.
 
 ## KG Status Lifecycle — multi-phase pipeline pattern
 
-When the workflow scouts entities and acts on them across multiple phases (source → score → report → outreach → follow-up), use the \`status\` field on KG rows as a DB-indexed state machine. Filtering by a single status value (e.g. \`status: "new"\`) is an O(1) indexed lookup regardless of list size — never scan the full list and filter in code.
+When a workflow acts on entities across phases (source → score → report → outreach), use KG row \`status\` as a DB-indexed state machine. Filtering by one status (e.g. \`status: "new"\`) is indexed — never scan the full list and filter in code.
 
 **Status values are user-defined** — choose names that map to your pipeline phases (e.g. \`new → scored → reported → email_sent → closed_*\`, or \`draft → review → approved → published\`). Document the state machine in the workflow goal or as a KG text entry.
 

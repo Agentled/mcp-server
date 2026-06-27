@@ -14,8 +14,8 @@ export function registerKnowledgeTools(server: McpServer, clientFactory: ClientF
 
     server.tool(
         'get_workspace',
-        `Get workspace company info, team visibility, and knowledge schema overview.
-Returns company details, active team members, pending team invitations, and a summary of all knowledge lists with their field definitions and row counts.
+        `Get workspace company info, current authenticated user, team visibility, and knowledge schema overview.
+Returns currentUser for the API key owner, company details, active team members when available, pending team invitations when available, and a summary of all knowledge lists with their field definitions and row counts.
 Use this as a first call to understand what data the workspace has.`,
         {},
         async (_args, extra) => {

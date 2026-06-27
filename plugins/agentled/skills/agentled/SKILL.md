@@ -304,6 +304,8 @@ The workspace inspection directly informs:
 - Whether new workflows should chain from existing ones or replace them
 - What existing agents already cover, so you don't duplicate
 
+For existing workflow work, map the workflow back to its use case before making claims or edits: call `get_workflow`, inspect `useCaseContext`, then call `get_use_case` with the returned key or workflow graph ID and read each linked `operatingGuides` knowledge text. If `agentGuidance.warnings` includes `MISSING_USE_CASE_OPERATING_GUIDE`, say the use-case README is missing and create/update the linked knowledge text before treating the context as complete.
+
 ## Incremental Authoring (recommended)
 
 Build workflows **one step at a time**. This catches errors per-step instead of dumping a full JSON blob and getting 10+ errors at once.
@@ -729,14 +731,20 @@ Full reference: `docs/DELEGATED_APPROVAL.md` in the main repo (runtime:
       "allowedSegments": ["startup-founder"],
       "maxEmailsPerCompany": 1,
       "minimumScheduleDelayMinutes": 15
-    }
+    },
+    "maxDailyAutoApprovals": 12,
+    "requireHumanForFirstN": 1,
+    "sampleHumanAuditRate": 0.1
   }
 }
 ```
 
-⚠️ **NEVER set `maxDailyAutoApprovals` / `requireHumanForFirstN` / `sampleHumanAuditRate`** —
-the runtime passes only `{ now }` as policy state, so they are NOT enforced, and
-`requireHumanForFirstN > 0` blocks every draft forever. Kill switch: `"disabled": true`.
+Pilot controls are enforced by workflow history before auto-approval:
+`maxDailyAutoApprovals` counts prior delegated approvals for the same workflow on the current
+UTC date, `requireHumanForFirstN` counts prior human-approved workflow timelines, and
+`sampleHumanAuditRate` deterministically samples drafts into human review. If capped-policy
+history cannot be read, the runtime fails closed and leaves the draft pending. Kill switch:
+`"disabled": true`.
 
 **Reviewer agent requirements** — the agent named by `agentId` must be **`status: "active"`**
 (use `activate_agent`), in the workflow's workspace, with the workflow id in its

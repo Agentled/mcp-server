@@ -1,6 +1,6 @@
 {
   "name": "agentled",
-  "version": "0.18.2+codex.20260618041452",
+  "version": "0.18.3+codex.20260627104308",
   "description": "Continuous deployment of AI from Codex — deploy AI agents with routines, build their workflows and tools, monitor usage and feedback, and keep optimizing via the Agentled MCP server.",
   "author": {
     "name": "Agentled",
@@ -19,6 +19,7 @@
   ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json",
   "interface": {
     "displayName": "Agentled",
     "shortDescription": "Continuous deployment of AI — deploy, monitor, and optimize AI agents",

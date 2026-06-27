@@ -223,7 +223,7 @@ Interval values:
   By interval: 6h, 48h
 
 Model format: "provider:modelId" e.g. "openai:gpt-5.4-mini" (default).
-Use skillIds from list_agent_skills for routine-level skill overrides.`,
+Use skillIds from list_agent_skills for routine-level skill overrides. Use list_agent_skills({ includeRuntime: true }) for advanced routine runtime bundles such as routine-core.`,
         {
             agent_id: z.string().describe('Agent slug or ID'),
             name: z.string().describe('Routine name'),
@@ -232,7 +232,7 @@ Use skillIds from list_agent_skills for routine-level skill overrides.`,
             model: z.string().optional().describe('Model to use (default: openai:gpt-5.4-mini)'),
             max_steps_per_run: z.number().int().optional().describe('Max tool-use steps per run (default: 20)'),
             max_credits_per_day: z.number().int().optional().describe('Daily credit cap (default: 50)'),
-            skillIds: z.array(z.string()).optional().describe('Routine-level skill IDs. Overrides the parent agent skills for this routine.'),
+            skillIds: z.array(z.string()).optional().describe('Routine-level skill IDs. Overrides the parent agent skills for this routine. Use list_agent_skills({ includeRuntime: true }) for advanced bundles such as routine-core.'),
         },
         async ({ agent_id, name, prompt, interval, model, max_steps_per_run, max_credits_per_day, skillIds }, extra) => {
             const client = clientFactory(extra);
@@ -267,7 +267,7 @@ If interval is updated, nextRunAt is automatically recalculated.`,
             model: z.string().optional().describe('New model'),
             max_steps_per_run: z.number().int().optional().describe('Max steps per run'),
             max_credits_per_day: z.number().int().optional().describe('Daily credit cap'),
-            skillIds: z.array(z.string()).optional().describe('Routine-level skill IDs. Overrides the parent agent skills for this routine.'),
+            skillIds: z.array(z.string()).optional().describe('Routine-level skill IDs. Overrides the parent agent skills for this routine. Use list_agent_skills({ includeRuntime: true }) for advanced bundles such as routine-core.'),
             status: z.enum(['active', 'paused']).optional().describe('New status'),
         },
         async ({ routine_id, name, prompt, interval, model, max_steps_per_run, max_credits_per_day, skillIds, status }, extra) => {

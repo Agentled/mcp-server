@@ -34,6 +34,18 @@ async function resolveAgentIdForChat(
     return match.id;
 }
 
+function omitUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
+    return Object.fromEntries(
+        Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
+    ) as Partial<T>;
+}
+
+const agentAppPermissionSchema = z.object({
+    access: z.enum(['read', 'write']).describe('read exposes read-only actions; write also exposes mutating actions'),
+    writeApprovalRequired: z.boolean().optional().describe('Only applies to write access. Defaults to true.'),
+    actionApprovals: z.record(z.string(), z.boolean()).optional().describe('Optional per-action approval overrides keyed by canonical action ID, e.g. { "linkedin.create-comment": true }. Only applies when access is write.'),
+});
+
 export function registerAgentTools(server: McpServer, clientFactory: ClientFactory) {
 
     server.tool(
@@ -96,8 +108,10 @@ Key fields:
 - instructions: System prompt / core AGENTS.md content
 - enabledApps: App IDs this agent can use — get IDs from list_apps (e.g. ['web-scraping', 'kg', 'gmail'])
 - appPermissions: Optional per-app permissions keyed by app ID. Use { access: 'read' } for read-only or { access: 'write', writeApprovalRequired: true } for mutating access with approval.
+  For per-action overrides, add actionApprovals with canonical action keys, e.g. { linkedin: { access: 'write', writeApprovalRequired: true, actionApprovals: { 'linkedin.create-comment': false } } }.
   Read access is implicit and never requires approval. The internal 'agentled' app is not configurable here.
 - skillIds: Skill IDs from list_agent_skills. Stored internally as enabledSkills; user-facing label is Skills.
+  Use list_agent_skills({ includeRuntime: true }) only when configuring advanced runtime bundles such as workflow-operator, template-runner, or inline-execution.
 - assignedWorkflowIds: Workflow IDs this agent can trigger — get IDs from list_workflows
 - goals: Natural-language description of what the agent should achieve
 - configFiles: Override generated config files — keys are 'SOUL.md' (persona), 'TOOLS.md' (tool routing).
@@ -128,11 +142,8 @@ To add scheduled routines after creating the agent, use create_routine.`,
             ]).optional().describe('Preset agent type template (default: custom)'),
             enabledApps: z.array(z.string()).optional().describe("App IDs the agent can use (e.g. ['web-scraping', 'kg', 'gmail'])"),
             enabledActions: z.array(z.string()).optional().describe('Specific action IDs to enable (fine-grained control within apps)'),
-            skillIds: z.array(z.string()).optional().describe('Skill IDs from list_agent_skills. Stored internally as enabledSkills; user-facing label is Skills.'),
-            appPermissions: z.record(z.string(), z.object({
-                access: z.enum(['read', 'write']).describe('read exposes read-only actions; write also exposes mutating actions'),
-                writeApprovalRequired: z.boolean().optional().describe('Only applies to write access. Defaults to true.'),
-            })).optional().describe("Per-app permissions keyed by app ID, e.g. { linkedin: { access: 'read' }, gmail: { access: 'write', writeApprovalRequired: true } }"),
+            skillIds: z.array(z.string()).optional().describe('Skill IDs from list_agent_skills. Use includeRuntime: true on list_agent_skills for advanced runtime bundle IDs such as workflow-operator, template-runner, or inline-execution. Stored internally as enabledSkills; user-facing label is Skills.'),
+            appPermissions: z.record(z.string(), agentAppPermissionSchema).optional().describe("Per-app permissions keyed by app ID, e.g. { linkedin: { access: 'read' }, gmail: { access: 'write', writeApprovalRequired: true, actionApprovals: { 'gmail.send-email': true } } }"),
             assignedWorkflowIds: z.array(z.string()).optional().describe('Workflow IDs this agent can trigger'),
             linkedFileIds: z.array(z.string()).optional().describe('Workspace AgentFile IDs to attach as knowledge'),
             chatModel: z.string().optional().describe("Chat model override (e.g. 'anthropic:claude-4-6-sonnet', 'openai:gpt-4o-mini')"),
@@ -157,18 +168,21 @@ To add scheduled routines after creating the agent, use create_routine.`,
         }, extra) => {
             const client = clientFactory(extra);
             const result = await client.createAgent({
-                name, description, instructions, agentType,
-                enabledApps,
-                enabledActions,
-                skillIds,
-                appPermissions,
-                assignedWorkflowIds,
-                linkedFileIds,
-                chatModel,
-                goals, configFiles,
-                iconName: avatar_icon_name,
-                iconColor: avatar_color,
-                activate, status, modelTier, maxCreditsPerDay,
+                ...omitUndefined({
+                    description, instructions, agentType,
+                    enabledApps,
+                    enabledActions,
+                    skillIds,
+                    appPermissions,
+                    assignedWorkflowIds,
+                    linkedFileIds,
+                    chatModel,
+                    goals, configFiles,
+                    iconName: avatar_icon_name,
+                    iconColor: avatar_color,
+                    activate, status, modelTier, maxCreditsPerDay,
+                }),
+                name,
             });
             return {
                 content: [{
@@ -202,6 +216,7 @@ To add scheduled routines after creating the agent, use create_routine.`,
 | Assign workflows (full replace) | \`updates: { assignedWorkflowIds: ["wf-1", "wf-2"] }\` |
 | Add to assigned workflows | fetch via \`get_agent\`, modify locally, send full new array (or use \`manage_agent_workflows\`) |
 | Allow an app to write with approval | \`updates: { enabledApps: ["linkedin"], appPermissions: { linkedin: { access: "write", writeApprovalRequired: true } } }\` |
+| Override one action approval | \`updates: { enabledApps: ["linkedin"], appPermissions: { linkedin: { access: "write", writeApprovalRequired: true, actionApprovals: { "linkedin.create-comment": false } } } }\` |
 | Keep an app read-only | \`updates: { enabledApps: ["linkedin"], appPermissions: { linkedin: { access: "read" } } }\` |
 | Change avatar color only | \`updates: { avatar: { color: "#7C3AED" } }\` (iconName preserved) |
 | Activate (fail-fast on missing fields) | \`updates: { status: "active" }\` |

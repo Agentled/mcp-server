@@ -84,7 +84,23 @@ Then set your API key in the shell Claude Code runs from:
 export AGENTLED_API_KEY=wsk_...
 ```
 
-The plugin bundles the `agentled` skill (workflow-authoring guidance, namespaced `agentled:agentled`) and auto-starts the MCP server via `npx -y @agentled/mcp-server`. The same plugin directory also carries the Codex manifest (`.codex-plugin/`) — one bundle, both hosts.
+The plugin bundles the `agentled` skill (workflow-authoring guidance, namespaced `agentled:agentled`) and auto-starts the MCP server via `npx -y @agentled/mcp-server`. The same plugin directory also carries the Codex manifest (`.codex-plugin/`) and Codex lifecycle hooks — one bundle, both hosts.
+
+For Codex, the hook pack acts as in-session guidance around the CLI/MCP loop:
+session start explains the Agentled/Codex business-loop split, prompt/tool hooks
+add turn-level guidance when client needs, priorities, failures, or product gaps
+appear, and stop hooks nudge implementation handoffs to include readiness,
+validation, side effects, and next decision. Hooks do not store feedback, call
+Agentled APIs, run automations, spend credits, or perform customer/workspace
+writes. In Codex, run `/hooks` after installing or changing the plugin so the
+local hook definitions are reviewed and trusted before they run.
+
+Use Codex automations for outside-workspace FDE cadence such as Outlook/client
+email follow-up, vendor replies, repo/build checks, and weekly operator reviews.
+Use Agentled routines for Agentled workspace/runtime checks such as workflow
+health, routine health, execution review, workspace summaries, and managed-agent
+operations. Use `submit_feedback_to_agentled` or `agentled feedback submit` when
+the user explicitly wants product feedback captured.
 
 > **Pick one install path, not both.** If you previously ran `claude mcp add agentled ...` or `--setup-skills`, remove those before (or instead of) installing the plugin — otherwise you get two identical MCP server processes and the skill registered twice. Cleanup: `claude mcp remove agentled` and delete `.claude/skills/agentled/` (or `~/.claude/skills/agentled/`). `--setup-skills` now detects an installed plugin and refuses to double-register unless you pass `--force`.
 
@@ -259,12 +275,21 @@ stage preference, check size, and portfolio synergy. Compare with last round's o
 
 ## Available Tools
 
+### Use-case operating guides
+
+When work starts from an existing workflow ID, call `get_workflow` first and
+inspect `useCaseContext`. Then call `get_use_case` with the returned key or
+workflow graph ID, and read any `operatingGuides` before answering
+workflow-specific questions, running backfills, or editing live config. Missing
+guide warnings mean the operating README is not attached yet and the context is
+incomplete.
+
 ### Workflows
 
 | Tool | Description |
 |------|-------------|
 | `list_workflows` | List all workflows in the workspace |
-| `get_workflow` | Get full workflow definition by ID |
+| `get_workflow` | Get full workflow definition by ID, including `useCaseContext` when linked |
 | `get_workflow_credits` | Get ledger-derived, period-labelled workflow credit usage; opt in to cost drivers with `includeCostDrivers` |
 | `create_workflow` | Create a new workflow from pipeline JSON |
 | `update_workflow` | Update an existing workflow (top-level scalars; for context/metadata prefer `update_workflow_context`) |
@@ -440,10 +465,13 @@ For the deep reference (StepMergeError codes, dot-path validation rules, full di
 | `rerun` | Rerun or retry any step by `timelineId` — works for failed AND succeeded steps, disambiguates loop iterations |
 
 Run deep links use `/<locale>/<workspace>/<workflowPathname>/runs?runId=<executionId>&step=<stepId>`.
-The `step` query param is optional; when present, the app expands that workflow
-step and scrolls to it. `stepId` is the workflow step id, not the timeline id.
-Inside the app chat/navigation tool surface, `navigateToExecutionPage` accepts
-the same optional `stepId`.
+The `step` query param is optional only for run-level handoffs. When a response
+points to a specific approval card, output, failure, or current step, include
+`&step=<stepId>` and do not ask the human to open the step manually after a
+run-only URL. When present, the app expands that workflow step and scrolls to
+it. `stepId` is the workflow step id, not the timeline id. Inside the app
+chat/navigation tool surface, `navigateToExecutionPage` accepts the same
+`stepId`.
 
 Knowledge row deep links use `/<locale>/<workspace>/knowledge-and-data/<listKey>?rowId=<rowId>`.
 The app opens the Knowledge & Data list page and opens the row editor sheet for

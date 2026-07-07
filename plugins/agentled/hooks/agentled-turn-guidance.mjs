@@ -2,6 +2,7 @@
 import {
   additionalContext,
   guidanceForCategory,
+  euHighImpactLegalReviewGuidance,
   readHookInput,
   shortToolText,
   shouldCapture,
@@ -21,15 +22,18 @@ const text = source === 'prompt'
   ? truncate(input.prompt || '', 900)
   : shortToolText(input);
 
-if (!shouldCapture(text)) process.exit(0);
+const legalReviewGuidance = euHighImpactLegalReviewGuidance(text);
+
+if (!shouldCapture(text) && !legalReviewGuidance) process.exit(0);
 
 const category = signalCategory(text);
 const guidance = guidanceForCategory(category);
 
 const context = [
-  `Agentled ${category} signal noticed in this Codex session; no local feedback file was written.`,
-  guidance,
+  category ? `Agentled ${category} signal noticed in this Codex session; no local feedback file was written.` : null,
+  guidance || null,
+  legalReviewGuidance || null,
   'If this changes client needs, product priorities, or follow-up work, mention it in the final handoff.',
-].join(' ');
+].filter(Boolean).join(' ');
 
 additionalContext(hookEventName, context);

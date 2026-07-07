@@ -126,7 +126,7 @@ The agent-manager and routine-manager skills are control-plane tools for draft g
         'list_workspace_skills',
         `List workspace-created skills. These are draft/published/archived skill records backed by AgentFile content.
 
-Use import_workspace_skill for a one-step Markdown/SKILL.md/JSON import. Use create_workspace_skill only when you already have the backing AgentFile ID.`,
+Use import_workspace_skill for a one-step Markdown/SKILL.md/JSON import. Use create_workspace_skill only when you already have the backing AgentFile ID. Workspace skill allowedApps/allowedActions are recommended tools only; they do not grant app/action scope, runtime bundles, workspace connections, write access, or approval bypasses.`,
         {
             status: z.enum(['draft', 'published', 'archived']).optional().describe('Optional status filter'),
             limit: z.number().int().positive().max(500).optional().describe('Maximum rows to return'),
@@ -147,7 +147,7 @@ Use import_workspace_skill for a one-step Markdown/SKILL.md/JSON import. Use cre
         'import_workspace_skill',
         `Import a Markdown, SKILL.md, or JSON skill file into a draft workspace skill.
 
-This creates one backing workspace AgentFile and then one draft WorkspaceSkill. It does not publish the skill, assign it to an agent, run chat/routines/workflows, write providers, send messages, bypass approvals, or spend credits. Use publish_workspace_skill and explicit agent assignment only after reviewing the draft.`,
+This creates one backing workspace AgentFile and then one draft WorkspaceSkill. Imported allowedApps/allowedActions are recommended apps/actions only. Import does not grant those tools, publish the skill, assign it to an agent, run chat/routines/workflows, write providers, send messages, bypass approvals, or spend credits. Use publish_workspace_skill and explicit agent assignment only after reviewing the draft.`,
         {
             content: z.string().optional().describe('Raw Markdown/SKILL.md/JSON skill content. Provide either content or url.'),
             url: z.string().url().optional().describe('HTTPS URL to Markdown/SKILL.md/JSON skill content. GitHub blob URLs are converted to raw URLs. Provide either content or url.'),
@@ -170,14 +170,14 @@ This creates one backing workspace AgentFile and then one draft WorkspaceSkill. 
         'create_workspace_skill',
         `Create a draft workspace skill backed by an existing AgentFile.
 
-The AgentFile content should contain the skill instructions/body. The WorkspaceSkill record stores lifecycle, risk, relevance, allowed apps/actions, and approval metadata. Prefer import_workspace_skill for Markdown/SKILL.md/JSON imports; use this low-level tool when you already have a reviewed AgentFile ID.`,
+The AgentFile content should contain the skill instructions/body. The WorkspaceSkill record stores lifecycle, risk, relevance, recommended apps/actions, and approval metadata. The allowedApps/allowedActions fields are recommendations for runtime guidance; actual availability still comes from the assigned agent app/action scope, runtime bundles, workspace connections, and approval gates. Prefer import_workspace_skill for Markdown/SKILL.md/JSON imports; use this low-level tool when you already have a reviewed AgentFile ID.`,
         {
             name: z.string().min(1).describe('Skill name'),
             contentFileId: z.string().min(1).describe('AgentFile ID containing skill instructions/body'),
             description: z.string().optional().describe('Short skill description'),
             category: z.string().optional().describe('Skill category'),
-            allowedApps: z.array(z.string()).optional().describe('Allowed app IDs'),
-            allowedActions: z.array(z.string()).optional().describe('Allowed action IDs'),
+            allowedApps: z.array(z.string()).optional().describe('Recommended app IDs; does not grant app access'),
+            allowedActions: z.array(z.string()).optional().describe('Recommended action IDs; does not grant action access'),
             approvalPolicy: z.record(z.unknown()).optional().describe('Approval policy metadata'),
             riskProfile: z.record(z.unknown()).optional().describe('Risk profile metadata'),
             relevanceRules: z.record(z.unknown()).optional().describe('When the skill should be relevant'),
@@ -223,8 +223,8 @@ The AgentFile content should contain the skill instructions/body. The WorkspaceS
             contentFileId: z.string().optional().describe('Replacement AgentFile ID for skill instructions/body'),
             description: z.string().nullable().optional().describe('Skill description; null clears it'),
             category: z.string().nullable().optional().describe('Skill category; null clears it'),
-            allowedApps: z.array(z.string()).optional().describe('Allowed app IDs'),
-            allowedActions: z.array(z.string()).optional().describe('Allowed action IDs'),
+            allowedApps: z.array(z.string()).optional().describe('Recommended app IDs; does not grant app access'),
+            allowedActions: z.array(z.string()).optional().describe('Recommended action IDs; does not grant action access'),
             approvalPolicy: z.record(z.unknown()).nullable().optional().describe('Approval policy metadata; null clears it'),
             riskProfile: z.record(z.unknown()).nullable().optional().describe('Risk profile metadata; null clears it'),
             relevanceRules: z.record(z.unknown()).nullable().optional().describe('Relevance rules; null clears them'),

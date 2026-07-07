@@ -284,6 +284,11 @@ workflow-specific questions, running backfills, or editing live config. Missing
 guide warnings mean the operating README is not attached yet and the context is
 incomplete.
 
+When work starts from a user's business goal rather than an existing workflow,
+use [How to Build Use Cases From User Goals](../docs/HOW_TO_BUILD_USE_CASES_FROM_USER_GOALS.md).
+It covers the external-agent lifecycle from bounded chat result to KG text/list
+state, `WorkspaceUseCase`, workflows, approval queues, and home summary updates.
+
 ### Workflows
 
 | Tool | Description |
@@ -555,6 +560,11 @@ Do not start high-volume prompts with `INPUTS`, `{{currentItem}}`, `{{steps.*}}`
 | `update_workspace_executive_summary` | Write the workspace-wide executive summary on the Workspace Assistant card |
 | `list_pinned_outputs` | List output pages pinned to the workspace home/sidebar |
 | `set_output_page_pin` | Pin or unpin a workflow output page on the workspace home/sidebar |
+| `list_workspace_views` | List saved workspace view manifests and source/action guidance |
+| `create_workspace_view` | Create a saved operating-surface manifest over KG, workflows, approvals, agents, routines, actions, output pages, external APIs, or custom sources |
+| `get_workspace_view` | Get one saved workspace view by id or key |
+| `update_workspace_view` | Update a saved workspace view manifest without mutating source data or executing actions |
+| `archive_workspace_view` | Archive a workspace view without deleting linked data |
 | `list_knowledge_lists` | List knowledge lists in the workspace |
 | `get_knowledge_rows` | Get rows from a knowledge list (paginated via `nextToken`, max 200) |
 | `get_knowledge_rows_by_ids` | Fetch specific rows by ID (max 200) — use after `query_kg_edges` |

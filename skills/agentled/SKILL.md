@@ -303,6 +303,7 @@ The workspace inspection directly informs:
 - What KG lists exist to read from or write to
 - Whether new workflows should chain from existing ones or replace them
 - What existing agents already cover, so you don't duplicate
+When referring to KG lists or text entries in user-facing replies, include both the human-readable name/title and the stable key/id, not just the id. Example: `VC Contacts (gtm_vc_contacts)`.
 
 For existing workflow work, map the workflow back to its use case before making claims or edits: call `get_workflow`, inspect `useCaseContext`, then call `get_use_case` with the returned key or workflow graph ID and read each linked `operatingGuides` knowledge text. If `agentGuidance.warnings` includes `MISSING_USE_CASE_OPERATING_GUIDE`, say the use-case README is missing and create/update the linked knowledge text before treating the context as complete.
 
@@ -396,6 +397,42 @@ Sidebar rendering uses each field directly:
 - The pin row renders as **active** when the operator's current URL matches the pin's target.
 
 When seeding a workspace via templates, pre-populate `pinnedOutputs[]` only for the curated artifacts the operator should access directly from the workspace sidebar on day one. Supply `pipelineName` and `colorTextClass` for the proper rendering (otherwise they fall back to the muted default, which still works but loses the visual cue). Pin entries reference output pages that exist on workflows in the same workspace; entries pointing at deleted or renamed pipelines still render — the URL just resolves to a 404 page until the pin is removed.
+
+### Workspace views (saved operating surfaces)
+
+Use `WorkspaceView` when the user asks for a reusable view of a KG list,
+funnel, action queue, approval inbox, workflow output, agent/routine state, or
+combined operating surface. Workspace views are **not KG-only** and are **not**
+weekly report snapshots. They are saved manifests over live workspace data:
+`dataSources[]`, optional filters/transforms, a `ConfigLayout` `layout`, optional
+actions, refresh/safety metadata, and ownership/status fields.
+
+Available surfaces:
+- MCP: `list_workspace_views`, `create_workspace_view`,
+  `get_workspace_view`, `update_workspace_view`, `archive_workspace_view`.
+- CLI: `agentled workspace-views list|create|get|update|archive` and alias
+  `agentled views ...`.
+- API: `GET/POST /api/external/workspace-views` and
+  `GET/PATCH/DELETE /api/external/workspace-views/<id>`.
+
+Rules for agents:
+- Inspect existing views before creating another one.
+- Creating/updating a view writes only the manifest. It must not read providers,
+  run workflows, mutate KG rows, send messages, make approval decisions, or
+  spend credits.
+- Data sources can reference KG lists/text, workflow executions/output pages,
+  workflow timelines, pending approvals, agent approvals, action queues,
+  routine runs, external APIs, or custom sources.
+- View actions describe what the UI/agent may present later. They do not grant
+  permission to execute the action. Set `approvalRequired: true` for writes,
+  sends, provider calls, approval decisions, workflow starts that can spend
+  credits, and anything customer-visible.
+- Prefer `status: "draft"` unless the user clearly approved making the view
+  active or pinned.
+- Return the saved view id/key, source list, and approval-gated actions so the
+  operator knows what was saved and what remains only a proposed action.
+
+See `docs/WORKSPACE_VIEWS.md` for examples and the model contract.
 
 ### Cluster summaries
 
@@ -510,7 +547,7 @@ AI steps can optionally specify a model and provider via the `agent` field:
 | `anthropic` | `claude-4-6-sonnet`, `claude-4-5-haiku`, `claude-4-8-opus` |
 | `google` | `gemini-3-pro`, `gemini-3-flash`, `gemini-2.5-pro`, `gemini-2.5-flash` |
 | `mistral` | `mistral-large-latest`, `mistral-small-latest`, `codestral-latest` |
-| `deepseek` | `deepseek-chat`, `deepseek-reasoner` |
+| `deepseek` | `deepseek-v4-flash`, `deepseek-v4-pro` (`deepseek-chat` and `deepseek-reasoner` are legacy aliases retiring 2026-07-24) |
 | `kimi` | `kimi-k2.5` |
 | `minimax` | `minimax-m2.5` |
 | `bytedance` | `doubao-seed-1.6-flash`, `seed-2.0-mini`, `doubao-seed-1.8-beta` |

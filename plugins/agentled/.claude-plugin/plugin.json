@@ -1,6 +1,6 @@
 {
   "name": "agentled",
-  "version": "0.18.3",
+  "version": "0.18.4",
   "description": "Continuous deployment of AI from Claude Code — deploy AI agents with routines, build their workflows and tools, monitor usage and feedback, and keep optimizing via the Agentled MCP server.",
   "author": {
     "name": "Agentled",

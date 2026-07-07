@@ -395,9 +395,22 @@ Supports multi-turn conversations via session_id.`,
                 }
 
                 const parts: string[] = [];
-                if (result.response) parts.push(result.response);
-                parts.push(`\n---\nagent_id: ${resolvedAgentId}`);
-                if (result.sessionId) parts.push(`\n---\nsession_id: ${result.sessionId}`);
+                if (result.status === 'running' && result.turnId) {
+                    parts.push(JSON.stringify({
+                        status: 'running',
+                        agent_id: resolvedAgentId,
+                        session_id: result.sessionId,
+                        turn_id: result.turnId,
+                        instruction: `Call get_chat_turn_result with turn_id "${result.turnId}". Do not resend the original prompt while this turn is running.`,
+                        statusUrl: result.statusUrl,
+                        resultUrl: result.resultUrl,
+                    }, null, 2));
+                } else {
+                    if (result.response) parts.push(result.response);
+                    parts.push(`\n---\nagent_id: ${resolvedAgentId}`);
+                    if (result.sessionId) parts.push(`\n---\nsession_id: ${result.sessionId}`);
+                    if (result.turnId) parts.push(`\n---\nturn_id: ${result.turnId}`);
+                }
 
                 return {
                     content: [{

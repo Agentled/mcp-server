@@ -153,6 +153,7 @@ Pin sparingly: only use workspace-level pins for recurring reports, dashboards, 
         `List all knowledge list schemas with field definitions, row counts, and metadata.
 Returns detailed information about each list including fields, source type, category, entity config, and KG sync status.
 Use this to discover what lists exist and understand their structure before querying rows.
+When you mention knowledge lists or text entries back to a human, include both the human-readable name/title and stable key/id, not only the id. Example: VC Contacts (\`gtm_vc_contacts\`).
 
 **KG-First:** Call this BEFORE generating any AI-step prompt that references business-specific personalization (ICP criteria, scoring rubrics, sector lists, seed lists, etc.) to check whether the content already lives in workspace knowledge. If it does, reference it at runtime via kg.read-list rather than hardcoding it in the prompt template.`,
         {},
@@ -173,6 +174,7 @@ Use this to discover what lists exist and understand their structure before quer
         `Fetch rows from a knowledge list (paginated, up to 200 per call).
 Use this to inspect actual data or scan a small list end-to-end.
 Returns rows with their full rowData, count, totalCount for unfiltered list reads, and nextToken. Pass nextToken from the previous response to fetch the next page. nextToken is null when there are no more rows.
+When you mention this list back to a human, include the human-readable list name and stable list key when known, not only the key.
 
 For targeted lookups by ID use \`get_knowledge_rows_by_ids\` — it fetches specific rows in a single call (max 200) without scanning the whole list.
 For entity-relationship queries (e.g. "all deals scored by this investor") start with \`query_kg_edges\`, then pass the returned node IDs to \`get_knowledge_rows_by_ids\`.`,
@@ -224,6 +226,7 @@ Note: \`source_node_id\` and \`target_node_id\` values from \`query_kg_edges\` c
     server.tool(
         'get_knowledge_text',
         `Fetch a text-type knowledge entry by key. Use this to access text-based knowledge like feedback files, notes, or configuration text stored in the workspace.
+When you mention this text entry back to a human, include the human-readable title/name and stable text key. If no stored title exists, derive a short readable title from the key and still include the key.
 
 **KG-First:** Call this BEFORE generating any AI-step prompt that references workspace-specific content (investment thesis, brand voice, ICP description, scoring rubric, etc.) to check whether it already exists. If found, pass it via a runtime read step rather than hardcoding the text inline in the prompt template.`,
         {

@@ -48,12 +48,22 @@ Example: chat("Build me a workflow that takes a LinkedIn company URL, enriches t
 
                 const text = result.response || JSON.stringify(result, null, 2);
                 const sessionId = result.sessionId;
+                const turnId = result.turnId;
 
                 return {
                     content: [{
                         type: 'text' as const,
-                        text: sessionId
-                            ? JSON.stringify({ response: text, sessionId })
+                        text: result.status === 'running' && turnId
+                            ? JSON.stringify({
+                                status: 'running',
+                                sessionId,
+                                turnId,
+                                instruction: `Call get_chat_turn_result with turn_id "${turnId}". Do not resend the original prompt while this turn is running.`,
+                                statusUrl: result.statusUrl,
+                                resultUrl: result.resultUrl,
+                            }, null, 2)
+                            : sessionId
+                            ? JSON.stringify({ response: text, sessionId, ...(turnId ? { turnId } : {}) })
                             : text,
                     }],
                 };
@@ -67,5 +77,36 @@ Example: chat("Build me a workflow that takes a LinkedIn company URL, enriches t
                 };
             }
         }
+    );
+
+    server.tool(
+        'get_chat_turn_result',
+        `Get the status or final result for a durable external chat turn returned by chat or chat_with_agent.
+
+Use this after a chat tool response returns status "running" and a turn_id. Polling this tool is idempotent and does not rerun the original prompt, model call, app actions, approvals, credits, or external sends.`,
+        {
+            turn_id: z.string().describe('The durable turn ID returned by chat or chat_with_agent.'),
+        },
+        async ({ turn_id }, extra) => {
+            const client = clientFactory(extra);
+            try {
+                const result = await client.getChatTurnResult(turn_id);
+                return {
+                    content: [{
+                        type: 'text' as const,
+                        text: JSON.stringify(result, null, 2),
+                    }],
+                    isError: result?.status === 'failed' || !!result?.error,
+                };
+            } catch (error: any) {
+                return {
+                    content: [{
+                        type: 'text' as const,
+                        text: `Chat turn result failed: ${error?.message || 'Unknown error'}`,
+                    }],
+                    isError: true,
+                };
+            }
+        },
     );
 }

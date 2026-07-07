@@ -42,6 +42,19 @@ export function shouldCapture(text) {
   return Boolean(signalCategory(text));
 }
 
+export function euHighImpactLegalReviewGuidance(text) {
+  const lower = String(text ?? '').toLowerCase();
+  const hasEuContext = /\b(eu|europe|european union|eea|gdpr|ai act|spain|spanish|france|french|germany|german|italy|italian|netherlands|dutch|belgium|belgian|ireland|irish|portugal|portuguese|austria|austrian|sweden|swedish|denmark|danish|finland|finnish|poland|polish)\b/.test(lower);
+  const hasHighImpactUseCase = /\b(hiring|recruiting|recruitment|candidate|applicant|employment|employee|worker|workplace|education|student|exam|admission|credit|loan|mortgage|insurance|claim|healthcare|medical|patient|diagnosis|triage|law enforcement|policing|police|migration|asylum|border|biometric|facial recognition|social scoring|public benefit|essential service)\b/.test(lower);
+
+  if (!hasEuContext || !hasHighImpactUseCase) return '';
+
+  return [
+    'EU or high-impact workflow signal: recommend legal review for this use case before production use.',
+    'Keep this as a non-blocking advisory: continue planning/building when requested, but prefer human review gates, audit logs, source/provenance links, user-visible AI disclosure where people interact with AI, and explicit approval before external actions.',
+  ].join(' ');
+}
+
 export function additionalContext(hookEventName, additionalContextText) {
   if (!additionalContextText) return;
   console.log(JSON.stringify({

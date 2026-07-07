@@ -50,7 +50,7 @@ Slack, WhatsApp, Signal, and Telegram use defaultAgentId routing. Email does not
 per-agent address and agent responses include the derived address in their channels array.
 
 Use list_channels to inspect current assignments and list_agents to find valid agent IDs.
-Use configure_channel for more granular updates (enable/disable, allowedSenders, etc.).`,
+Use configure_channel for more granular updates (enable/disable, allowedSenders, outbound email approval, etc.).`,
         {
             channel_type: z.enum(CHANNEL_TYPES).describe("Channel type: 'email', 'slack', 'whatsapp', 'signal', or 'telegram'"),
             agent_id: z.string().describe('Agent ID to handle inbound messages on this channel'),
@@ -72,10 +72,10 @@ Use configure_channel for more granular updates (enable/disable, allowedSenders,
 
     server.tool(
         'configure_channel',
-        `Update non-secret channel configuration — enable/disable, default agent, allowed senders, etc.
+        `Update non-secret channel configuration — enable/disable, default agent, allowed senders, outbound policy, etc.
 
 Allowed fields per channel:
-- email: enabled, allowedSenders (string[]), inboundAddress. defaultAgentId is legacy and ignored by email routing.
+- email: enabled, allowedSenders (string[]), inboundAddress, allowOutboundEmail, allowedOutboundRecipients, requireOutboundApproval. defaultAgentId is legacy and ignored by email routing.
 - slack: enabled, defaultAgentId, defaultChannelId (Slack channel ID used to route inbound mentions when one Slack team is shared)
 - whatsapp: enabled, defaultAgentId
 - signal: enabled, defaultAgentId
@@ -89,17 +89,23 @@ external API — connect those via the Settings → Channels UI (OAuth flows enc
             default_agent_id: z.string().optional().describe('Agent ID to handle inbound messages'),
             allowed_senders: z.array(z.string()).optional().describe('Sender whitelist (email only; empty = allow all)'),
             inbound_address: z.string().optional().describe('Inbound email address (email only; usually auto-generated)'),
+            allow_outbound_email: z.boolean().optional().describe('Allow agents to send email replies and new outbound email (email only)'),
+            allowed_outbound_recipients: z.array(z.string()).optional().describe('Allowed recipient patterns for outbound email, e.g. "*", "*@example.com", or "person@example.com" (email only)'),
+            require_outbound_approval: z.boolean().optional().describe('Require approval before every outbound email delivery (email only)'),
             default_channel_id: z.string().optional().describe('Slack channel ID to bind this workspace to, used for inbound mention routing when one Slack team is shared'),
             bot_username: z.string().optional().describe('Telegram bot username without @ (Telegram only)'),
             allowed_chat_ids: z.array(z.string()).optional().describe('Telegram chat ID allow-list (Telegram only)'),
         },
-        async ({ channel_type, enabled, default_agent_id, allowed_senders, inbound_address, default_channel_id, bot_username, allowed_chat_ids }, extra) => {
+        async ({ channel_type, enabled, default_agent_id, allowed_senders, inbound_address, allow_outbound_email, allowed_outbound_recipients, require_outbound_approval, default_channel_id, bot_username, allowed_chat_ids }, extra) => {
             const client = clientFactory(extra);
             const updates: Record<string, any> = {};
             if (enabled !== undefined) updates.enabled = enabled;
             if (default_agent_id !== undefined) updates.defaultAgentId = default_agent_id;
             if (allowed_senders !== undefined) updates.allowedSenders = allowed_senders;
             if (inbound_address !== undefined) updates.inboundAddress = inbound_address;
+            if (allow_outbound_email !== undefined) updates.allowOutboundEmail = allow_outbound_email;
+            if (allowed_outbound_recipients !== undefined) updates.allowedOutboundRecipients = allowed_outbound_recipients;
+            if (require_outbound_approval !== undefined) updates.requireOutboundApproval = require_outbound_approval;
             if (default_channel_id !== undefined) updates.defaultChannelId = default_channel_id;
             if (bot_username !== undefined) updates.botUsername = bot_username;
             if (allowed_chat_ids !== undefined) updates.allowedChatIds = allowed_chat_ids;

@@ -27,7 +27,6 @@ import { registerAiBuilderTools } from './tools/ai-builders.js';
 import { registerUseCaseTools } from './tools/use-cases.js';
 import { registerWorkspaceViewTools } from './tools/workspace-views.js';
 import { registerWorkspaceProvisioningTools } from './tools/workspace-provisioning.js';
-import { registerControlRouterTools } from './tools/control-router.js';
 import { registerAppResources } from './resources/apps.js';
 import { registerWorkflowResources } from './resources/workflows.js';
 
@@ -100,7 +99,6 @@ export function createServer(): McpServer {
     registerUseCaseTools(server, clientFactory);
     registerWorkspaceViewTools(server, clientFactory);
     registerWorkspaceProvisioningTools(server, clientFactory);
-    registerControlRouterTools(server, clientFactory);
 
     // Register resources
     registerAppResources(server, clientFactory);

@@ -51,6 +51,44 @@ export function registerUseCaseTools(server: McpServer, clientFactory: ClientFac
         pipeline: z.record(z.unknown()).optional().describe('Concrete orchestrator workflow pipeline payload to provision later after preview approval'),
     });
 
+    const kitReceiverShape = z.object({
+        name: z.string().min(1).describe('Client-facing receiver workflow name'),
+        pipeline: z.record(z.unknown()).optional().describe('Concrete receiver workflow pipeline payload for the reviewed plan'),
+    });
+
+    const sharedAssistantSourcingInstallShape = z.object({
+        type: z.literal('shared-assistant-sourcing-v1'),
+        intent: z.enum([
+            'lead-generation',
+            'deal-sourcing',
+            'company-discovery',
+            'local-business-prospecting',
+            'fresh-signal-sourcing',
+        ]).describe('Explicit sourcing intent; this is not inferred from arbitrary keywords'),
+        brief: z.object({
+            targetEntityOrRole: z.string().optional().describe('Who or what the workspace wants to find'),
+            geography: z.string().optional().describe('Geographic scope for the first bounded pass'),
+            qualificationCriteria: z.array(z.string()).optional().describe('Business criteria for a useful match'),
+        }).optional().describe('Known brief fields; missing values are proposed from context'),
+        context: z.object({
+            selectedUseCase: z.record(z.unknown()).optional().describe('Selected or expressed use-case context'),
+            company: z.object({
+                name: z.string().optional(),
+                website: z.string().optional(),
+                description: z.string().optional(),
+            }).optional().describe('Known company context used to propose the brief'),
+            workspaceGeography: z.string().optional().describe('Known workspace or onboarding geography'),
+            workspaceKnowledgeHints: z.array(z.string()).optional().describe('Relevant workspace knowledge labels or summaries'),
+            earlierAnswers: z.record(z.unknown()).optional().describe('Earlier structured onboarding answers'),
+        }).optional(),
+        caps: z.object({
+            rowCap: z.number().int().min(1).max(5).optional(),
+            creditCap: z.number().int().min(1).max(5).optional(),
+        }).optional().describe('Bounded first-run and recurring configuration caps'),
+        operatingGuideKey: z.string().optional().describe('Workspace operating-guide key to create when atomic provisioning is available'),
+        signalKitOwnedWorkflowIds: z.array(z.string()).optional().describe('Existing workflow ids owned by this install profile; unrelated assignments are preserved'),
+    });
+
     const kitPreviewShape = {
         key: z.string().optional().describe('Stable workspace-local use-case key, e.g. business-intro'),
         workspaceSlug: z.string().optional().describe('Optional workspace slug for readable preview ids'),
@@ -66,6 +104,8 @@ export function registerUseCaseTools(server: McpServer, clientFactory: ClientFac
         sources: z.array(kitSourceShape).optional().describe('Source workflow specs'),
         tail: kitTailShape.optional().describe('Shared tail workflow spec'),
         orchestrator: kitOrchestratorShape.optional().describe('Optional orchestrator/qualifier spec'),
+        receiver: kitReceiverShape.optional().describe('One receiver/processor workflow for a shared-assistant sourcing install'),
+        installProfile: sharedAssistantSourcingInstallShape.optional().describe('Optional additive shared-assistant sourcing profile'),
         config: z.record(z.unknown()).optional().describe('Use-case config'),
         metadata: z.record(z.unknown()).optional().describe('Additional metadata'),
     };
@@ -95,7 +135,7 @@ Use this before building or changing a multi-workflow business goal so you can r
         'preview_use_case_kit',
         `Preview the atomic operation plan for a Source -> KG -> Process WorkspaceUseCase kit.
 
-Use this before creating multiple related workflows for sourcing, intake, monitoring, business intros, or other shared-tail use cases. It returns the planned WorkspaceUseCase record, knowledge list, source workflows, shared tail, optional orchestrator, and link operations in deterministic order. This is dry-run only: it does not create records, workflows, KG rows, sends, provider writes, routine runs, or spend credits.`,
+Use this before creating multiple related workflows for sourcing, intake, monitoring, business intros, or other shared-tail use cases. It returns the planned WorkspaceUseCase record, knowledge list, source workflows, shared tail, optional orchestrator or receiver, and link operations in deterministic order. A shared-assistant-sourcing-v1 profile is preview-only until its configuration, operating guide, assistant merge, and first-run adapters share the same rollback boundary. This is dry-run only: it does not create records, workflows, KG rows, sends, provider writes, routine runs, or spend credits.`,
         kitPreviewShape,
         async (input, extra) => {
             const client = clientFactory(extra);
@@ -113,7 +153,7 @@ Use this before creating multiple related workflows for sourcing, intake, monito
         'provision_use_case_kit',
         `Provision a previously reviewed Source -> KG -> Process WorkspaceUseCase kit.
 
-Use preview_use_case_kit first, review the deterministic plan, then call this only when the user explicitly approves the write. This creates the WorkspaceUseCase record, knowledge-list schema, and concrete workflows carried in payload.pipeline, then links them on the use-case record. It does not run workflows, insert KG rows, send messages, write to external providers, trigger routines, make approval decisions, or spend credits. Requires confirmToken exactly "PROVISION_USE_CASE_KIT".`,
+Use preview_use_case_kit first, review the deterministic plan, then call this only when the user explicitly approves the write. This creates the WorkspaceUseCase record, knowledge-list schema, and concrete workflows carried in payload.pipeline, then links them on the use-case record. shared-assistant-sourcing-v1 profiles are rejected before writes until atomic provisioning is available. It does not run workflows, insert KG rows, send messages, write to external providers, trigger routines, make approval decisions, or spend credits. Requires confirmToken exactly "PROVISION_USE_CASE_KIT".`,
         {
             ...kitPreviewShape,
             confirmToken: z.literal('PROVISION_USE_CASE_KIT').describe('Required explicit confirmation token for kit provisioning writes'),
@@ -148,7 +188,7 @@ Use preview_use_case_kit first, review the deterministic plan, then call this on
         knowledgeTextKeys: z.array(z.string()).optional().describe('Linked knowledge text keys'),
         knowledgeListKeys: z.array(z.string()).optional().describe('Linked knowledge list keys'),
         dataSourceIds: z.array(z.string()).optional().describe('Linked data source IDs'),
-        config: z.record(z.unknown()).nullable().optional().describe('Use-case config; null clears it on update'),
+        config: z.record(z.unknown()).nullable().optional().describe('Use-case config; onboardingGoal.approvalRequirements is read-only here and must be edited from Use case > Safeguards'),
         validation: z.record(z.unknown()).nullable().optional().describe('Validation metadata; null clears it on update'),
         metadata: z.record(z.unknown()).nullable().optional().describe('Additional metadata; null clears it on update'),
     };
@@ -177,7 +217,7 @@ Use this before creating or attaching workflows for use cases such as sourcing, 
             knowledgeTextKeys: z.array(z.string()).optional().describe('Linked knowledge text keys'),
             knowledgeListKeys: z.array(z.string()).optional().describe('Linked knowledge list keys'),
             dataSourceIds: z.array(z.string()).optional().describe('Linked data source IDs'),
-            config: z.record(z.unknown()).optional().describe('Use-case config'),
+            config: z.record(z.unknown()).optional().describe('Use-case config; onboardingGoal.approvalRequirements cannot be created through this external tool'),
             validation: z.record(z.unknown()).optional().describe('Validation metadata'),
             metadata: z.record(z.unknown()).optional().describe('Additional metadata'),
         },
@@ -197,7 +237,7 @@ Use this before creating or attaching workflows for use cases such as sourcing, 
         'get_use_case',
         `Get one workspace use case by stored id, key, or workflowGraphId.
 
-Use this as the first inspection step for a specific business goal such as business-intro or front-desk. Read operatingGuides before answering workflow-specific questions or changing linked workflows. If agentGuidance.warnings includes MISSING_USE_CASE_OPERATING_GUIDE, state that the operating README is missing and create/update the linked knowledge text before treating the context as complete. This tool is read-only; create/update/provisioning operations remain intentionally separate until the atomic use-case kit lifecycle lands.`,
+Use this as the first inspection step for a specific business goal such as business-intro or front-desk. Read operatingGuides before answering workflow-specific questions or changing linked workflows. The normalized onboardingGoal field is stable desired configuration only; never infer live approval enforcement from it. If agentGuidance.warnings includes MISSING_USE_CASE_OPERATING_GUIDE, state that the operating README is missing and create/update the linked knowledge text before treating the context as complete. This tool is read-only; create/update/provisioning operations remain intentionally separate until the atomic use-case kit lifecycle lands.`,
         {
             id: z.string().min(1).describe('WorkspaceUseCase id, key, or workflowGraphId'),
         },
@@ -217,7 +257,7 @@ Use this as the first inspection step for a specific business goal such as busin
         'update_use_case',
         `Update a WorkspaceUseCase product record by stored id, key, or workflowGraphId.
 
-Use this to attach existing workflows, agents, routines, AgentFiles, KG refs, data sources, config, validation, owner, collaborators, or lifecycle status to the use-case hub. This updates the use-case record only; it does not run workflows, mutate providers, spend credits, or make approval decisions.`,
+Use this to attach existing workflows, agents, routines, AgentFiles, KG refs, data sources, config, validation, owner, collaborators, or lifecycle status to the use-case hub. config.onboardingGoal.approvalRequirements is read-only through external tools and must be edited from Use case > Safeguards. For config.useCasePage.header, use source pointers rather than copied labels: workflow analytics require { source: "workflow-analytics", workflowId, metricId, window }, and channels require { channel, workflowId, stepId }. The platform derives metric labels/formats and channel approval/provider modes from those sources; validate each referenced workflow after updating the use case. This updates the use-case record only; it does not run workflows, mutate providers, spend credits, or make approval decisions.`,
         {
             id: z.string().min(1).describe('WorkspaceUseCase id, key, or workflowGraphId'),
             ...useCaseMutationShape,

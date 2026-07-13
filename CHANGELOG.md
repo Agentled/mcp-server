@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.19.0] — MCP Server
+
+### Use-case operations and external-agent safety
+
+- Added resolved use-case operating context and source-backed operations-header fields to use-case tools.
+- Exposed workflow deletion confirmation tokens through the MCP contract.
+- Removed the temporary control-router tool after install-kit provisioning moved behind internal APIs.
+- Kept MCP and standalone CLI behavior aligned for the shared-assistant sourcing lifecycle.
+
 ## [0.18.0] — MCP Server
 
 ### Claude Code plugin (MCP-016)

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.1] - MCP Server
+
+### LinkedIn assistant skill and sourcing readiness
+
+- Bundled the LinkedIn assistant operating skill for MCP/plugin installations.
+- Added source-readiness fields to shared-assistant sourcing previews and provisioning.
+- Updated the shared Core dependency for the source-readiness contract.
+
 ## [0.19.0] — MCP Server
 
 ### Use-case operations and external-agent safety

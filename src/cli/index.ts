@@ -428,7 +428,7 @@ async function main(): Promise<void> {
                 scaffoldWriteCommand(scaffoldName, flags.out, flags.json);
             }
             await updatePromise;
-            process.exit(process.exitCode ?? 0);
+            return;
         }
 
         if (subcommand === 'validate') {

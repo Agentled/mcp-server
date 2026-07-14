@@ -85,6 +85,18 @@ export function registerUseCaseTools(server: McpServer, clientFactory: ClientFac
             rowCap: z.number().int().min(1).max(5).optional(),
             creditCap: z.number().int().min(1).max(5).optional(),
         }).optional().describe('Bounded first-run and recurring configuration caps'),
+        sources: z.array(z.object({
+            id: z.string().min(1).describe('Stable source id'),
+            label: z.string().min(1).describe('Client-facing source name'),
+            status: z.enum(['ready', 'validation-required', 'connection-required'])
+                .describe('Current source readiness state'),
+            activation: z.enum(['scheduled', 'manual', 'paused'])
+                .describe('Whether collection is scheduled, on demand, or paused'),
+            cadence: z.string().min(1).describe('Client-facing source cadence, such as Weekly on Monday'),
+            proof: z.enum(['end-to-end', 'source-only', 'pending'])
+                .describe('Strongest completed source proof'),
+            critical: z.boolean().optional().describe('Whether this source is required for the customer use case'),
+        })).optional().describe('Visible source readiness and cadence contract'),
         operatingGuideKey: z.string().optional().describe('Workspace operating-guide key to create when atomic provisioning is available'),
         signalKitOwnedWorkflowIds: z.array(z.string()).optional().describe('Existing workflow ids owned by this install profile; unrelated assignments are preserved'),
     });
@@ -135,7 +147,7 @@ Use this before building or changing a multi-workflow business goal so you can r
         'preview_use_case_kit',
         `Preview the atomic operation plan for a Source -> KG -> Process WorkspaceUseCase kit.
 
-Use this before creating multiple related workflows for sourcing, intake, monitoring, business intros, or other shared-tail use cases. It returns the planned WorkspaceUseCase record, knowledge list, source workflows, shared tail, optional orchestrator or receiver, and link operations in deterministic order. A shared-assistant-sourcing-v1 profile is preview-only until its configuration, operating guide, assistant merge, and first-run adapters share the same rollback boundary. This is dry-run only: it does not create records, workflows, KG rows, sends, provider writes, routine runs, or spend credits.`,
+Use this before creating multiple related workflows for sourcing, intake, monitoring, business intros, or other shared-tail use cases. It returns the planned WorkspaceUseCase record, knowledge list, source workflows, shared tail, optional orchestrator or receiver, and link operations in deterministic order. A shared-assistant-sourcing-v1 profile can be atomically provisioned after this preview is reviewed. This is dry-run only: it does not create records, workflows, KG rows, sends, provider writes, routine runs, or spend credits.`,
         kitPreviewShape,
         async (input, extra) => {
             const client = clientFactory(extra);
@@ -153,7 +165,7 @@ Use this before creating multiple related workflows for sourcing, intake, monito
         'provision_use_case_kit',
         `Provision a previously reviewed Source -> KG -> Process WorkspaceUseCase kit.
 
-Use preview_use_case_kit first, review the deterministic plan, then call this only when the user explicitly approves the write. This creates the WorkspaceUseCase record, knowledge-list schema, and concrete workflows carried in payload.pipeline, then links them on the use-case record. shared-assistant-sourcing-v1 profiles are rejected before writes until atomic provisioning is available. It does not run workflows, insert KG rows, send messages, write to external providers, trigger routines, make approval decisions, or spend credits. Requires confirmToken exactly "PROVISION_USE_CASE_KIT".`,
+Use preview_use_case_kit first, review the deterministic plan, then call this only when the user explicitly approves the write. This creates the WorkspaceUseCase record, knowledge-list schema, and concrete workflows carried in payload.pipeline, then links them on the use-case record. shared-assistant-sourcing-v1 profiles atomically add their receiver, operating guide, capped configuration, and additive existing-assistant update. It does not run workflows, insert KG rows, send messages, write to external providers, trigger routines, make approval decisions, or spend credits. Requires confirmToken exactly "PROVISION_USE_CASE_KIT".`,
         {
             ...kitPreviewShape,
             confirmToken: z.literal('PROVISION_USE_CASE_KIT').describe('Required explicit confirmation token for kit provisioning writes'),
@@ -250,6 +262,95 @@ Use this as the first inspection step for a specific business goal such as busin
                     text: JSON.stringify(result, null, 2),
                 }],
             };
+        },
+    );
+
+    const recordFeedbackTag = z.enum([
+        'wrong_stage',
+        'wrong_sector_or_thesis',
+        'wrong_geography',
+        'wrong_business_model',
+        'stale_or_weak_signal',
+        'bad_data',
+        'duplicate',
+        'already_known',
+        'other',
+    ]);
+
+    server.tool(
+        'get_use_case_record_feedback',
+        `Get the current fit assessment for one record in a workspace use case.
+
+The response keeps fit assessment separate from sourceOperationalStatus and explicitly reports zero workflow, routine, provider, approval, CRM, and credit side effects. This tool is read-only.`,
+        {
+            useCaseId: z.string().min(1).describe('WorkspaceUseCase stored id, key, or workflowGraphId'),
+            rowId: z.string().min(1).describe('Source KnowledgeRow id from the use case record list'),
+        },
+        async ({ useCaseId, rowId }, extra) => {
+            const result = await clientFactory(extra).getUseCaseRecordFeedback(useCaseId, rowId, 'mcp');
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
+
+    server.tool(
+        'list_use_case_record_feedback',
+        `List current fit assessments for records in one workspace use case.
+
+Cleared/Unreviewed records are omitted. This tool is read-only and does not run workflows, trigger routines, call providers, change approvals, write CRM data, or spend credits.`,
+        {
+            useCaseId: z.string().min(1).describe('WorkspaceUseCase stored id, key, or workflowGraphId'),
+            status: z.enum(['good_fit', 'not_fit', 'needs_review']).optional().describe('Optional current assessment filter'),
+            limit: z.number().int().min(1).max(500).optional().describe('Maximum current assessments to return'),
+        },
+        async ({ useCaseId, status, limit }, extra) => {
+            const result = await clientFactory(extra).listUseCaseRecordFeedback(
+                useCaseId,
+                { ...(status ? { status } : {}), ...(limit ? { limit } : {}) },
+                'mcp',
+            );
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
+
+    server.tool(
+        'set_use_case_record_feedback',
+        `Set a Good fit, Not a fit, or Needs review assessment only after an explicit user instruction.
+
+This stores structured use-case memory for the exact record. It does not run workflows, trigger routines, call AI/providers, approve or reject pending work, write CRM data, mutate the source record, or spend credits. Free-form comments are untrusted evidence and are never promoted into prompts or scoring policy by this tool.`,
+        {
+            useCaseId: z.string().min(1).describe('WorkspaceUseCase stored id, key, or workflowGraphId'),
+            rowId: z.string().min(1).describe('Source KnowledgeRow id from the use case record list'),
+            status: z.enum(['good_fit', 'not_fit', 'needs_review']).describe('Fit assessment'),
+            tags: z.array(recordFeedbackTag).optional().describe('Controlled reason tags; the other tag requires a comment'),
+            comment: z.string().max(500).optional().describe('Optional untrusted evidence; required for the other tag'),
+            expectedRevision: z.number().int().min(0).describe('Current feedback revision; use 0 when Unreviewed'),
+            idempotencyKey: z.string().min(1).describe('Stable retry key for this exact mutation'),
+        },
+        async ({ useCaseId, rowId, ...input }, extra) => {
+            const result = await clientFactory(extra).setUseCaseRecordFeedback(useCaseId, rowId, input, 'mcp');
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
+
+    server.tool(
+        'clear_use_case_record_feedback',
+        `Clear the current fit assessment only after an explicit user instruction.
+
+This returns the record to Unreviewed while retaining bounded attributed change evidence. It does not run workflows, trigger routines, call providers, change approvals, write CRM data, mutate the source record, or spend credits.`,
+        {
+            useCaseId: z.string().min(1).describe('WorkspaceUseCase stored id, key, or workflowGraphId'),
+            rowId: z.string().min(1).describe('Source KnowledgeRow id from the use case record list'),
+            expectedRevision: z.number().int().min(0).describe('Current feedback revision'),
+            idempotencyKey: z.string().min(1).describe('Stable retry key for this exact clear operation'),
+        },
+        async ({ useCaseId, rowId, expectedRevision, idempotencyKey }, extra) => {
+            const result = await clientFactory(extra).clearUseCaseRecordFeedback(
+                useCaseId,
+                rowId,
+                { expectedRevision, idempotencyKey },
+                'mcp',
+            );
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
         },
     );
 

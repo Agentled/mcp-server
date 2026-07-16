@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.2] - MCP Server
+
+### Typed onboarding-goal management
+
+- Added read and typed mutation tools for onboarding-goal policy, approval paths, finish lines, goal briefs, skill bindings, and primary CRM references.
+- Returned freshly resolved live safeguards and actor-attributed audit IDs without running workflows, providers, or external sends.
+
 ## [0.19.1] - MCP Server
 
 ### LinkedIn assistant skill and sourcing readiness

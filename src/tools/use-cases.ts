@@ -265,6 +265,194 @@ Use this as the first inspection step for a specific business goal such as busin
         },
     );
 
+    const goalBindingShape = z.discriminatedUnion('kind', [
+        z.object({
+            kind: z.literal('workflow-step'),
+            workflowId: z.string().min(1).describe('Referenced workflow ID'),
+            stepId: z.string().min(1).describe('Referenced workflow step ID'),
+        }),
+        z.object({
+            kind: z.literal('agent-action'),
+            agentId: z.string().min(1).describe('Linked agent ID'),
+            appId: z.string().min(1).describe('App ID'),
+            actionId: z.string().min(1).describe('App action ID'),
+        }),
+        z.object({
+            kind: z.literal('workspace-channel'),
+            channel: z.enum(['email', 'linkedin', 'whatsapp']).describe('Workspace channel authority'),
+        }),
+        z.object({
+            kind: z.literal('routine-action'),
+            routineId: z.string().min(1).describe('Routine ID'),
+            appId: z.string().min(1).describe('App ID'),
+            actionId: z.string().min(1).describe('App action ID'),
+        }),
+    ]);
+
+    server.tool(
+        'get_use_case_goal',
+        `Get the normalized onboarding-goal contract and freshly resolved approval enforcement for one WorkspaceUseCase.
+
+Use this instead of reading raw config when deciding whether an operation is automatic, approval-gated, disabled, misaligned, or unresolved. This tool is read-only and does not run workflows, trigger routines, call providers, spend credits, make approval decisions, or perform external writes.`,
+        {
+            id: z.string().min(1).describe('WorkspaceUseCase id, key, or workflowGraphId'),
+        },
+        async ({ id }, extra) => {
+            const result = await clientFactory(extra).getWorkspaceUseCaseGoal(id);
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
+
+    server.tool(
+        'set_use_case_goal_policy',
+        `Set one typed desired approval policy on an existing onboarding-goal requirement.
+
+This changes desired policy only; it does not change live workflow, agent, channel, or routine enforcement and does not approve or execute any action. Weakening a send, write, or delete safeguard requires confirm=true. The server reuses the UI validator and writes an actor-attributed audit row.`,
+        {
+            id: z.string().min(1).describe('WorkspaceUseCase id, key, or workflowGraphId'),
+            requirementId: z.string().min(1).describe('Existing onboarding-goal approval requirement ID'),
+            desired: z.enum(['automatic', 'approval_required', 'disabled']).describe('Desired policy'),
+            confirm: z.boolean().optional().describe('Must be true when weakening a send, write, or delete safeguard'),
+        },
+        async ({ id, requirementId, desired, confirm }, extra) => {
+            const result = await clientFactory(extra).mutateWorkspaceUseCaseGoal(id, {
+                action: 'set-policy',
+                requirementId,
+                desired,
+                ...(confirm === true ? { confirm: true } : {}),
+            });
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
+
+    const registerGoalBindingTool = (
+        name: 'bind_use_case_goal_requirement' | 'unbind_use_case_goal_requirement',
+        action: 'bind' | 'unbind',
+    ) => server.tool(
+        name,
+        `${action === 'bind' ? 'Add' : 'Remove'} one typed live-enforcement pointer on an onboarding-goal approval requirement.
+
+This updates the requirement binding only. It does not change the referenced workflow, agent, channel, or routine; run providers; spend credits; make approval decisions; or execute external writes. Removing a path from a send, write, or delete safeguard requires confirm=true. The server reuses the UI validator and writes an actor-attributed audit row.`,
+        {
+            id: z.string().min(1).describe('WorkspaceUseCase id, key, or workflowGraphId'),
+            requirementId: z.string().min(1).describe('Existing onboarding-goal approval requirement ID'),
+            binding: goalBindingShape.describe('Exact typed enforcement pointer to add or remove'),
+            confirm: z.boolean().optional().describe('For unbind only: must be true when removing a send, write, or delete safeguard path'),
+        },
+        async ({ id, requirementId, binding, confirm }, extra) => {
+            const result = await clientFactory(extra).mutateWorkspaceUseCaseGoal(id, {
+                action,
+                requirementId,
+                binding,
+                ...(action === 'unbind' && confirm === true ? { confirm: true } : {}),
+            });
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
+
+    registerGoalBindingTool('bind_use_case_goal_requirement', 'bind');
+    registerGoalBindingTool('unbind_use_case_goal_requirement', 'unbind');
+
+    server.tool(
+        'set_use_case_goal_finish_line',
+        `Set the default finish line to one milestone already declared by the onboarding-goal contract.
+
+This changes desired goal configuration only. It cannot mutate runtime milestone evidence or mark work complete, and it does not run workflows, trigger routines, call providers, spend credits, make approval decisions, or perform external writes.`,
+        {
+            id: z.string().min(1).describe('WorkspaceUseCase id, key, or workflowGraphId'),
+            milestone: z.enum(['find', 'qualify', 'prepare', 'operate']).describe('Declared finish-line milestone'),
+        },
+        async ({ id, milestone }, extra) => {
+            const result = await clientFactory(extra).mutateWorkspaceUseCaseGoal(id, {
+                action: 'set-finish-line',
+                milestone,
+            });
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
+
+    server.tool(
+        'set_use_case_goal_brief',
+        `Set the Knowledge Text key that contains the durable goal brief for one use case.
+
+This changes only the typed pointer. It does not edit Knowledge Text content, run workflows or routines, call providers, spend credits, decide approvals, or perform external writes. The server reuses the UI validator and writes an actor-attributed audit row.`,
+        {
+            id: z.string().min(1).describe('WorkspaceUseCase id, key, or workflowGraphId'),
+            goalBriefKey: z.string().min(1).describe('Knowledge Text key containing the durable goal brief'),
+        },
+        async ({ id, goalBriefKey }, extra) => {
+            const result = await clientFactory(extra).mutateWorkspaceUseCaseGoal(id, {
+                action: 'set-goal-brief',
+                goalBriefKey,
+            });
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
+
+    const goalSkillBindingShape = z.object({
+        skillId: z.string().min(1).describe('Built-in or workspace skill ID'),
+        agentId: z.string().min(1).describe('Linked AgentEntity ID'),
+        role: z.string().min(1).describe('Business role the skill serves in this use case'),
+    });
+
+    server.tool(
+        'bind_use_case_goal_skill',
+        `Bind one skill reference to a linked use-case agent and business role.
+
+This changes goal configuration only. It does not assign the skill to the agent, grant tools or app permissions, run providers, spend credits, or perform external writes. The server reuses the UI validator and writes an actor-attributed audit row.`,
+        {
+            id: z.string().min(1).describe('WorkspaceUseCase id, key, or workflowGraphId'),
+            binding: goalSkillBindingShape,
+        },
+        async ({ id, binding }, extra) => {
+            const result = await clientFactory(extra).mutateWorkspaceUseCaseGoal(id, {
+                action: 'bind-skill',
+                binding,
+            });
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
+
+    server.tool(
+        'unbind_use_case_goal_skill',
+        `Remove one exact skill and agent reference from an onboarding goal.
+
+This changes goal configuration only. It does not remove the skill from the agent, revoke tools or app permissions, run providers, spend credits, or perform external writes. The server reuses the UI validator and writes an actor-attributed audit row.`,
+        {
+            id: z.string().min(1).describe('WorkspaceUseCase id, key, or workflowGraphId'),
+            skillId: z.string().min(1).describe('Bound built-in or workspace skill ID'),
+            agentId: z.string().min(1).describe('Bound AgentEntity ID'),
+        },
+        async ({ id, skillId, agentId }, extra) => {
+            const result = await clientFactory(extra).mutateWorkspaceUseCaseGoal(id, {
+                action: 'unbind-skill',
+                skillId,
+                agentId,
+            });
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
+
+    server.tool(
+        'set_use_case_goal_primary_crm',
+        `Set the primary CRM reference used by one onboarding goal.
+
+This changes only the typed CRM reference. It does not connect the app, change credentials, write CRM data, run workflows or routines, call providers, spend credits, or decide approvals. The server reuses the UI validator and writes an actor-attributed audit row.`,
+        {
+            id: z.string().min(1).describe('WorkspaceUseCase id, key, or workflowGraphId'),
+            appId: z.string().min(1).describe('Agentled app ID for the CRM'),
+            label: z.string().min(1).describe('Business-facing CRM label'),
+        },
+        async ({ id, appId, label }, extra) => {
+            const result = await clientFactory(extra).mutateWorkspaceUseCaseGoal(id, {
+                action: 'set-primary-crm',
+                appId,
+                label,
+            });
+            return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        },
+    );
+
     const recordFeedbackTag = z.enum([
         'wrong_stage',
         'wrong_sector_or_thesis',

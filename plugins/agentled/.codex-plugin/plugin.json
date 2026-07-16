@@ -1,6 +1,6 @@
 {
   "name": "agentled",
-  "version": "0.19.1+codex.20260714233842",
+  "version": "0.19.2+codex.20260716163611",
   "description": "Continuous deployment of AI from Codex — deploy AI agents with routines, build their workflows and tools, monitor usage and feedback, and keep optimizing via the Agentled MCP server.",
   "author": {
     "name": "Agentled",

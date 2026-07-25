@@ -530,7 +530,7 @@ AI steps can optionally specify a model and provider via the `agent` field:
 {
   "id": "analyze",
   "type": "aiAction",
-  "agent": { "model": "claude-4-8-opus", "provider": "anthropic" },
+  "agent": { "model": "claude-5-opus", "provider": "anthropic" },
   "pipelineStepPrompt": { "template": "...", "responseStructure": {} },
   "creditCost": 10,
   "next": { "stepId": "next-step" }
@@ -544,7 +544,7 @@ AI steps can optionally specify a model and provider via the `agent` field:
 | Provider | Models |
 |----------|--------|
 | `openai` | `gpt-5-nano`, `gpt-5-mini`, `gpt-5.4`, `o4-mini`, `o3`, `o3-pro`, `o3-deep-research` |
-| `anthropic` | `claude-4-6-sonnet`, `claude-4-5-haiku`, `claude-4-8-opus` |
+| `anthropic` | `claude-5-sonnet`, `claude-5-opus`, `claude-4-5-haiku` |
 | `google` | `gemini-3-pro`, `gemini-3-flash`, `gemini-2.5-pro`, `gemini-2.5-flash` |
 | `mistral` | `mistral-large-latest`, `mistral-small-latest`, `codestral-latest` |
 | `deepseek` | `deepseek-v4-flash`, `deepseek-v4-pro` (`deepseek-chat` and `deepseek-reasoner` are legacy aliases retiring 2026-07-24) |
@@ -552,9 +552,9 @@ AI steps can optionally specify a model and provider via the `agent` field:
 | `minimax` | `minimax-m2.5` |
 | `bytedance` | `doubao-seed-1.6-flash`, `seed-2.0-mini`, `doubao-seed-1.8-beta` |
 | `perplexity` | `sonar-pro`, `sonar`, `sonar-reasoning-pro`, `sonar-reasoning` |
-| `xai` | `grok-4.3`, `grok-3-mini` |
+| `xai` | `grok-4.5`, `grok-4.3`, `grok-3-mini` |
 
-> **Tip:** Use `list_models` to get the full up-to-date list of supported model IDs. Use the internal model IDs (e.g., `claude-4-8-opus`), NOT the raw API model IDs (e.g., `claude-opus-4-8`). Using unsupported model IDs will result in a validation error.
+> **Tip:** Use `list_models` to get the full up-to-date list of supported model IDs. Use the internal model IDs (e.g., `claude-5-opus`), NOT the raw API model IDs (e.g., `claude-opus-5`). Using unsupported model IDs will result in a validation error.
 
 ### Code Step
 ```json

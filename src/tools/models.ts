@@ -13,7 +13,7 @@ export function registerModelTools(server: McpServer, clientFactory: ClientFacto
 tier (mini/standard/max), credit cost, and category.
 
 Use the model ID in step.agent.model and the provider in step.agent.provider when configuring AI steps.
-Example: agent: { model: "claude-4-8-opus", provider: "anthropic" }`,
+Example: agent: { model: "claude-5-opus", provider: "anthropic" }`,
         {},
         async (_args, extra) => {
             const client = clientFactory(extra);

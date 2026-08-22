@@ -86,6 +86,16 @@ export AGENTLED_API_KEY=wsk_...
 
 The plugin bundles the `agentled` skill (workflow-authoring guidance, namespaced `agentled:agentled`) and auto-starts the MCP server via `npx -y @agentled/mcp-server`. The same plugin directory also carries the Codex manifest (`.codex-plugin/`) and Codex lifecycle hooks — one bundle, both hosts.
 
+### Grok Build plugin
+
+The same portable plugin includes a Grok Build manifest at
+`plugins/agentled/.grok-plugin/plugin.json`. It starts the published local
+stdio MCP server declared in `.mcp.json`; it does not contain an AgentLed API
+key, OAuth client secret, workspace ID, or customer data. Authenticate with
+your own AgentLed CLI profile before installing it in Grok Build, then start
+with read-only tool discovery. Marketplace submission material is in
+[`plugins/agentled/GROK_MARKETPLACE_SUBMISSION.md`](plugins/agentled/GROK_MARKETPLACE_SUBMISSION.md).
+
 For Codex, the hook pack acts as in-session guidance around the CLI/MCP loop:
 session start explains the Agentled/Codex business-loop split, prompt/tool hooks
 add turn-level guidance when client needs, priorities, failures, or product gaps

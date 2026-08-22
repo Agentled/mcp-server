@@ -1,0 +1,17 @@
+{
+  "name": "agentled",
+  "version": "0.19.3",
+  "description": "Build, validate, and run AgentLed workflows from Grok Build through the AgentLed MCP server.",
+  "author": {
+    "name": "AgentLed",
+    "url": "https://www.agentled.ai"
+  },
+  "homepage": "https://www.agentled.ai/en/developers",
+  "repository": "https://github.com/Agentled/mcp-server",
+  "license": "MIT",
+  "keywords": [
+    "agentled",
+    "agentled workflows",
+    "agentled mcp"
+  ]
+}

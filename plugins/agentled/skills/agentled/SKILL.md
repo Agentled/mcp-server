@@ -203,6 +203,48 @@ Runtime inputs:
 
 Avoid starting prompts with `INPUTS`, `{{currentItem}}`, `{{steps.*}}`, `{{input.*}}`, `{{execution.id}}`, `{{now}}`, or `{{today}}`. In batch workflows like investor matching, keep the long scoring rubric first and put the startup/investor payload at the end so OpenAI/Anthropic can cache the shared prefix.
 
+### Built-in app result cache
+
+This is **not** the same as provider prompt caching above.
+
+| Mechanism | What it does |
+|-----------|--------------|
+| **Provider prompt cache** | Reuses an identical LLM prompt *prefix*; does **not** store or replay the model answer |
+| **Built-in app result cache** | Stores **app action** results in the workspace KnowledgeRow store; on a hit, skips the live provider call |
+
+Many paid/read actions already ship platform defaults (`DEFAULT_CACHE_POLICIES`). Prefer those — do **not** invent a parallel KG “cache loop” (read-list → enrich → write-list) for actions that already cache (e.g. `specter.enrich-companies`, `specter.enrich-people`, Affinity resolve/search variants, Waalaxy list actions).
+
+Optional **per-step override** on an `appAction` (merges over the default; `enabled: false` turns caching off for that step):
+
+```json
+{
+  "id": "enrich",
+  "type": "appAction",
+  "name": "Enrich Company",
+  "app": {
+    "id": "specter",
+    "actionId": "enrich-companies",
+    "source": "native",
+    "cache": {
+      "enabled": true,
+      "entityType": "company",
+      "ttlSeconds": 7776000,
+      "allowBypass": true,
+      "cacheKeyTemplate": "company:identifier={{companyIdentifier}}"
+    }
+  },
+  "stepInputData": {
+    "companyIdentifier": "{{input.company}}"
+  }
+}
+```
+
+Rules of thumb:
+- Cache keys must be derived from **inputs** so different inputs never share a key.
+- `aiAction` / `aiActionWithTools` do **not** use this result cache — only app actions with a default or `app.cache` override.
+- Fresh run / debug: set `cacheBypass` (when `allowBypass: true`). MCP `rerun` / `rerun_step` (and `/api/external/rerun*`) default `forceWithoutCache: true` — pass `false` only when you intentionally want cache hits on a rerun.
+- Custom KG loops remain valid for **durable lists / product state**, not as a substitute for built-in result cache on already-cached actions.
+
 **Which pattern to read, by task:**
 
 | You're building… | Read pattern | Scaffold |
@@ -356,7 +398,8 @@ Internal testing: **0 errors with incremental vs 13 errors with bulk JSON** on t
 
 For live workflows, prefer per-step tools over bulk updates:
 
-- `update_step(workflowId, stepId, updates)` — change one step (prompt, inputs, next, etc.)
+- `replace_step_dictionary` / `replace_step_path` / `unset_step_path` / `append_step_array_item` / `remove_step_array_item` — preferred for common single-path edits (dictionary keys, nested config, array items)
+- `update_step(workflowId, stepId, updates)` — low-level merge for complex multi-path edits
 - `add_step(workflowId, step, insertAfter?)` — insert a new step
 - `remove_step(workflowId, stepId)` — delete a step and re-wire neighbors
 - After edits: `validate_workflow` → `publish_workflow` (or `promote_draft` for live workflows)
@@ -369,6 +412,80 @@ For live workflows, prefer per-step tools over bulk updates:
 ## Workspace Surfaces
 
 The workspace home and sidebar carry workspace-level UI state on `Workspace.metadata`. Most metadata remains read-only via MCP, but pinned output pages and the workspace executive summary are intentionally writable through constrained tools:
+
+### Home tabs and the Recent tab
+
+`inspect_home_recent_tab` also reports the whole Home tab strip. Its `tabs` array
+lists every tab an operator sees, in display order — the `Recent` tab plus one
+tab per active use case that has a use-case page — with `id`, `kind`
+(`recent` or `use-case`), `label`, and `isDefault`. The response's
+`defaultTabId` names the tab Home opens when the URL does not select one. A Recent tab
+carrying `visibleWhenRunsExist: true` has no stored configuration yet, so Home shows it
+only once the workspace has runs; storing any configuration makes it always visible.
+
+To change which tab opens by default, set `defaultTabId` in the configuration to
+`"recent"` or to a use-case tab `id` from that list. A `defaultTabId` that is not
+a current Home tab is rejected, and the Recent tab cannot be the default while it
+is disabled. Omit `defaultTabId` to keep the legacy `defaultSelected` behavior:
+Recent opens by default when `defaultSelected` is true, otherwise the first
+use-case tab does. A member's own default use case still wins over the workspace
+default tab.
+
+The Home tab/table region can expose a `Recent` tab backed by bounded
+workflow-execution reads. Its rows keep the workflow execution name as the title
+(with the normal workflow/date fallback), clicking a row opens that exact run,
+and each configured workflow may add one optional personalized navigation CTA.
+
+Always call `inspect_home_recent_tab` immediately before
+`configure_home_recent_tab`. Pass the exact returned
+`workspaceUpdatedAt` as `expectedWorkspaceUpdatedAt`, plus either the complete
+configuration object or `null` to reset defaults. If the write returns a
+revision conflict, inspect again, reconcile against the fresh config, and retry
+only with the new revision.
+
+```json
+{
+  "version": 1,
+  "enabled": true,
+  "label": "Latest work",
+  "defaultSelected": true,
+  "defaultTabId": "recent",
+  "limit": 10,
+  "statuses": ["completed"],
+  "sources": [
+    {
+      "workflowId": "wfl_abc123",
+      "cta": {
+        "label": "Open report",
+        "target": {
+          "type": "output-page",
+          "outputPagePathname": "report"
+        }
+      }
+    }
+  ]
+}
+```
+
+Configuration bounds and target rules:
+
+- `version` must be `1`; `label` and each CTA label are non-empty and at most
+  40 characters.
+- `defaultTabId` is `"recent"` or a use-case tab id from `tabs`, at most 120
+  characters.
+- `limit` is 1-20 (default 10), `statuses` has at most 24 entries, and
+  `sources` has at most 12 distinct workspace workflow IDs.
+- An `output-page` target must name an output page on the same source workflow.
+- A `url-field` target may use only a safe
+  `metadata.<path>` or `executionContent.<path>` field. The row CTA appears
+  only when that run resolves the field to an `http` or `https` URL.
+- Omitted values use safe defaults. `enabled: false` hides the tab. Pass
+  `config: null` to reset the stored customization completely.
+
+This contract is display-only. Inspecting or configuring the tab does not run
+workflows, call providers, spend credits, change approvals, send or publish
+anything, or mutate workflow/customer records. A CTA is navigation, not an
+action grant.
 
 ### Pinned outputs (sidebar shortcuts)
 
@@ -451,7 +568,7 @@ This field is written by the weekly `cluster-summary` system routine. The routin
 
 ### Workspace executive summary
 
-The workspace-wide narrative is stored at `Workspace.metadata.executiveSummary` with the same shape (`body`, optional `bullets`, `generatedAt`, optional `author`). It is written by the weekly `workspace-summary` routine on the chat-only workspace assistant. That routine follows the bottom-up rule: it reads per-cluster `executiveSummary` fields (capped at 200 pipelines with a truncation flag) and writes a workspace rollup through `update_workspace_executive_summary({ body, bullets?, author? })`; it must not stitch directly from workflow executions or workflow-level data. The write tool is also exposed through MCP for explicit operator/agent updates. It patches only the `executiveSummary` key through a safe metadata merge so other workspace metadata keys survive, and the API sets `generatedAt` server-side.
+The workspace-wide narrative is stored at `Workspace.metadata.executiveSummary` with the same shape (`body`, optional `bullets`, `generatedAt`, optional `author`). It is written by the weekly `workspace-summary` routine on the AI Agent workspace assistant. That routine follows the bottom-up rule: it reads per-cluster `executiveSummary` fields (capped at 200 pipelines with a truncation flag) and writes a workspace rollup through `update_workspace_executive_summary({ body, bullets?, author? })`; it must not stitch directly from workflow executions or workflow-level data. The write tool is also exposed through MCP for explicit operator/agent updates. It patches only the `executiveSummary` key through a safe metadata merge so other workspace metadata keys survive, and the API sets `generatedAt` server-side.
 
 ## Workspace Awareness
 
@@ -507,6 +624,14 @@ Every workflow needs at minimum: a trigger step, one or more action steps, and a
 }
 ```
 
+For provider imports, campaign enrolment, sends, or status receipts, follow
+`docs/PROVIDER_WRITE_POLICY.md`. For an interactive Agentled-agent request, use the
+agent's assigned app permissions and request the concrete approval only if that
+runtime requires it. For an approval-gated action inside an AI workflow step, use an
+ordinary workflow `appAction` instead—the AI-tool surface cannot yet bind approval
+and resume to resolved arguments. Delegated approval currently applies only to
+`schedule-email`.
+
 ### AI Action
 ```json
 {
@@ -552,7 +677,7 @@ AI steps can optionally specify a model and provider via the `agent` field:
 | `minimax` | `minimax-m2.5` |
 | `bytedance` | `doubao-seed-1.6-flash`, `seed-2.0-mini`, `doubao-seed-1.8-beta` |
 | `perplexity` | `sonar-pro`, `sonar`, `sonar-reasoning-pro`, `sonar-reasoning` |
-| `xai` | `grok-4.5`, `grok-4.3`, `grok-3-mini` |
+| `xai` | `grok-4.6`, `grok-4.3`, `grok-3-mini` |
 
 > **Tip:** Use `list_models` to get the full up-to-date list of supported model IDs. Use the internal model IDs (e.g., `claude-5-opus`), NOT the raw API model IDs (e.g., `claude-opus-5`). Using unsupported model IDs will result in a validation error.
 
@@ -832,7 +957,7 @@ Working production reference: AngelHive Startup Outreach workflow
 | `agentled` | `get-linkedin-profile-from-url` | 2 | `profileUrls` |
 | `agentled` | `find-email-person-domain` | 3 | `firstName`, `lastName`, `domain` |
 | `hunter` | `find-email-person-domain` | 3 | `firstName`, `lastName`, `domain` |
-| `web-scraping` | `scrape` | 0 | `url` |
+| `web-scraping` | `scrape` | 2 | `url` |
 | `http-request` | `request` | 0 | `url`, `method`, `headers`, `body` |
 | `notion` | `get-page-markdown` | 1 | `pageUrl` |
 | `browser-use` | `run-task` | 15 | `task`, `startUrl` |

@@ -98,7 +98,7 @@ The response includes channels for currently reachable inbound channels. Email i
 the workspace email channel is enabled; use the returned email channel address rather than assigning a
 defaultAgentId for email.
 
-Agents are always 'chat-only' (conversational). For scheduled/autonomous work, create the agent
+Agents are conversational AI Agents by default. For scheduled/autonomous work, create the agent
 first, then attach routines to it via create_routine (e.g. daily deal-sourcer, weekly digest).
 
 Key fields:
@@ -117,7 +117,7 @@ Key fields:
 - configFiles: Override generated config files — keys are 'SOUL.md' (persona), 'TOOLS.md' (tool routing).
   If omitted, files are auto-generated from agentType template.
   Reflection context files ('JOURNAL.md', 'OBJECTIVES.md', 'PEOPLE.md') are linked AgentFiles, not configFiles.
-  Active chat-only agents auto-seed placeholders for those files. The agent decides what durable signal belongs there;
+  Active AI Agents auto-seed placeholders for those files. The agent decides what durable signal belongs there;
   do not write raw transcript logs or update them just because a chat turn happened.
 - avatar_icon_name: Lucide icon name for the agent avatar (e.g. 'Bot', 'Radar', 'Target', 'Sparkles')
 - avatar_color: Hex color for the avatar (e.g. '#6366f1', '#7C3AED', '#EA580C')
@@ -155,16 +155,14 @@ To add scheduled routines after creating the agent, use create_routine.`,
             avatar_icon_name: z.string().optional().describe("Lucide icon name for the avatar (e.g. 'Bot', 'Radar', 'Target', 'Sparkles', 'TrendingUp')"),
             avatar_color: z.string().optional().describe("Hex color for the avatar (e.g. '#6366f1', '#7C3AED', '#EA580C')"),
             activate: z.boolean().optional().describe('Activate immediately (default false = draft)'),
-            status: z.enum(['active', 'paused', 'draft']).optional().describe('Initial status (default: draft; use activate: true instead)'),
-            modelTier: z.enum(['mini', 'standard']).optional().describe('AI evaluation model tier'),
-            maxCreditsPerDay: z.number().optional().describe('Daily credit limit'),
+            status: z.enum(['active', 'draft']).optional().describe('Initial status (default: draft). Equivalent to activate: true when "active". Daily credit caps and model tier are routine settings — use create_routine.'),
         },
         async ({
             name, description, instructions, agentType,
             enabledApps, enabledActions, skillIds, appPermissions, assignedWorkflowIds, linkedFileIds, chatModel,
             goals, configFiles,
             avatar_icon_name, avatar_color,
-            activate, status, modelTier, maxCreditsPerDay,
+            activate, status,
         }, extra) => {
             const client = clientFactory(extra);
             const result = await client.createAgent({
@@ -180,7 +178,7 @@ To add scheduled routines after creating the agent, use create_routine.`,
                     goals, configFiles,
                     iconName: avatar_icon_name,
                     iconColor: avatar_color,
-                    activate, status, modelTier, maxCreditsPerDay,
+                    activate, status,
                 }),
                 name,
             });

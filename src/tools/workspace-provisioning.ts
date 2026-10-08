@@ -35,16 +35,17 @@ This is read-only. Agents should call this before create_workspace so existing f
         'create_workspace',
         `Create a workspace only when the caller has operator workspace-create scope; otherwise the request is rejected without mutation.
 
-Call resolve_workspace first. This setup primitive does not provision use-case kits, run workflows, insert candidate rows, send messages to customers, write CRM/calendar, call SignalKit receive, trigger routines, or spend provider credits.`,
+Call resolve_workspace first. Trusted operators preparing a client workspace without changing plans, trials, or credits must set billingMode to planless. This setup primitive does not provision use-case kits, run workflows, insert candidate rows, send messages to customers, write CRM/calendar, call SignalKit receive, trigger routines, or spend provider credits.`,
         {
             workspaceName: z.string().min(1).describe('Workspace display name to create'),
-            requestedSlug: z.string().optional().describe('Preferred workspace slug'),
+            requestedSlug: z.string().optional().describe('Preferred workspace slug; for billingMode=planless, omit it or use the normalized workspaceName exactly'),
             ownerEmail: z.string().email().optional().describe('Proposed owner email'),
             ownerUserId: z.string().optional().describe('Known owner user id, when already resolved'),
             clientDomain: z.string().optional().describe('Firm/client domain used for idempotent matching'),
             sourceRequestId: z.string().min(1).describe('Source thread, approval, or request id'),
             reason: z.string().min(1).describe('Plain-language reason for the workspace request'),
             billingPlanHint: z.string().optional().describe('Optional billing policy hint, e.g. trial_or_low_fixed_cap'),
+            billingMode: z.literal('planless').optional().describe('Trusted operator-only billing-neutral create; provisions no plan, trial, or credits'),
             initialAgentTemplate: z.string().optional().describe('Optional initial agent template hint, e.g. vc-analyst'),
             idempotencyKey: z.string().min(1).describe('Stable idempotency key for the workspace request'),
             locale: z.string().optional().describe('Locale used by workspace bootstrap; defaults to en'),

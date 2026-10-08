@@ -7,6 +7,41 @@ import { z } from 'zod';
 import type { ClientFactory } from '../server.js';
 
 const companyUrlsSchema = z.array(z.string()).optional();
+const homeRecentUrlFieldPattern =
+    /^(metadata|executionContent)\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/;
+const homeRecentUrlFieldSchema = z.custom<
+    `metadata.${string}` | `executionContent.${string}`
+>(
+    (value) => typeof value === 'string' && homeRecentUrlFieldPattern.test(value),
+    'URL field must start with metadata. or executionContent. and contain only safe path segments.',
+);
+const homeRecentCtaTargetSchema = z.discriminatedUnion('type', [
+    z.object({
+        type: z.literal('output-page'),
+        outputPagePathname: z.string().min(1),
+    }).strict(),
+    z.object({
+        type: z.literal('url-field'),
+        field: homeRecentUrlFieldSchema,
+    }).strict(),
+]);
+const homeRecentConfigSchema = z.object({
+    version: z.literal(1),
+    enabled: z.boolean().optional(),
+    label: z.string().min(1).max(40).optional(),
+    defaultSelected: z.boolean().optional(),
+    defaultTabId: z.string().min(1).max(120).optional(),
+    limit: z.number().int().min(1).max(20).optional(),
+    includeChildRuns: z.boolean().optional(),
+    statuses: z.array(z.string().min(1)).max(24).optional(),
+    sources: z.array(z.object({
+        workflowId: z.string().min(1),
+        cta: z.object({
+            label: z.string().min(1).max(40),
+            target: homeRecentCtaTargetSchema,
+        }).strict().optional(),
+    }).strict()).max(12).optional(),
+}).strict();
 
 export function registerKnowledgeTools(server: McpServer, clientFactory: ClientFactory) {
 
@@ -137,6 +172,53 @@ Pin sparingly: only use workspace-level pins for recurring reports, dashboards, 
         async (args, extra) => {
             const client = clientFactory(extra);
             const result = await client.setOutputPagePin(args);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
+        'inspect_home_recent_tab',
+        `Inspect the workspace Home tabs and Recent tab configuration, and return the current workspace revision.
+Returns "tabs": every Home tab in display order (the Recent tab plus one tab per active use case) with its id, kind, label, and isDefault flag, plus "defaultTabId" for the tab Home opens by default. A Recent tab marked "visibleWhenRunsExist" has no stored configuration yet, so Home shows it only once the workspace has runs.
+Call this before configure_home_recent_tab. The configuration is display-only and inspecting it does not run workflows, call providers, spend credits, or mutate customer data.`,
+        {},
+        async (_args, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.inspectHomeRecentTab();
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
+        'configure_home_recent_tab',
+        `Configure the display-only Recent tab shown inside the existing workspace Home tab/table region, and choose which Home tab opens by default.
+Set config.defaultTabId to "recent" or to a use-case tab id listed by inspect_home_recent_tab to change the default tab; omit it to keep the legacy defaultSelected behavior.
+Requires the exact workspace revision returned by inspect_home_recent_tab and a full config object, or null to reset defaults. This only changes Home navigation and presentation: it does not run workflows, call providers, spend credits, change approvals, or mutate workflow/customer records.`,
+        {
+            expectedWorkspaceUpdatedAt: z.string().min(1).describe(
+                'Exact workspaceUpdatedAt revision returned by inspect_home_recent_tab.',
+            ),
+            config: homeRecentConfigSchema.nullable().describe(
+                'Complete Home Recent config, or null to reset to defaults.',
+            ),
+        },
+        async ({ expectedWorkspaceUpdatedAt, config }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.configureHomeRecentTab({
+                expectedWorkspaceUpdatedAt,
+                config,
+                sourceSurface: 'mcp',
+            });
             return {
                 content: [{
                     type: 'text' as const,

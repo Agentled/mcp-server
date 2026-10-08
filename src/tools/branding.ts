@@ -10,12 +10,12 @@ export function registerBrandingTools(server: McpServer, clientFactory: ClientFa
 
     server.tool(
         'get_workspace_credits',
-        `Get the workspace's current credit balance and usage statistics.
+        `Get the authenticated workspace's canonical creditSnapshot plus optional period-labelled usage statistics.
 
 Returns:
-- currentBalance: remaining credits on the subscription plan
-- planType: subscription tier (e.g., "pro", "teams")
-- period: exact labelled window for every total (label, display, start, end)
+- creditSnapshot: schemaVersioned point-in-time balance (plan allowance, monthly remaining, purchased stored/available/unavailable, refresh/renewal dates, unsupported reservation=0, usable credits). Prefer these fields.
+- currentBalance / monthlyCredits / purchasedCredits / nextCreditResetAt: deprecated flat aliases during migration (monthlyCredits means remaining monthly balance, not plan allowance)
+- period: exact labelled window for every usage total (label, display, start, end)
 - periodDays: lookback window for usage stats when applicable
 - usedThisPeriod: total credits consumed in the labelled period
 - totalExecutions: number of unique workflow executions in the period
@@ -23,12 +23,11 @@ Returns:
 - recentUsage: last 20 credit deductions with execution/step context unless includeRecentUsage=false
 - costDrivers: optional bounded top workflows, steps, models, and apps when includeCostDrivers=true
 
-Every usage total is ledger-derived and must be shown with its period label. Use this to check if the workspace has enough credits before starting expensive workflows,
-or to report balance and burn rate to stakeholders.`,
+Workspace identity comes only from the API key. Every usage total is ledger-derived and must be shown with its period label. Use creditSnapshot for exact spendable balance; compose usage reporting separately.`,
         {
             period: z.enum(['rolling-30-days', 'rolling-7-days', 'current-month', 'previous-month', 'month-to-date', 'all-time'])
                 .optional()
-                .describe('Labelled reporting period. Default: rolling-30-days.'),
+                .describe('Labelled reporting period for usage totals only. Default: rolling-30-days.'),
             includeCostDrivers: z.boolean().optional().describe('Opt in to bounded workflow/step/model/app cost-driver groups.'),
             includeRecentUsage: z.boolean().optional().describe('Include recent ledger rows. Defaults to true.'),
             limit: z.number().int().positive().max(25).optional().describe('Max cost-driver rows per group, capped at 25.'),

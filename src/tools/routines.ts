@@ -55,7 +55,7 @@ function inferWorkspaceSlugFromAgent(agentEntityId?: unknown): string | undefine
 
 /**
  * The agent's slug is the part BEFORE the `@` in `<agent-slug>@<namespace>`
- * (e.g. `content-manager@agentled` → `content-manager`). The agent-activity
+ * (e.g. `content-manager@agentled` → `content-manager`). The agent Runs
  * route is keyed by this slug, not the full entity id.
  */
 function agentSlugFromEntityId(agentEntityId?: string): string | undefined {
@@ -66,30 +66,22 @@ function agentSlugFromEntityId(agentEntityId?: string): string | undefined {
 }
 
 /**
- * Build the URL that actually shows a routine's run output: the agent activity
- * page. A specific run deep-links to the activity-detail route
- * (`/agents/<slug>/activity/<agent-routine:routineId:runId>`); without a run id
- * we point at the agent's activity list (`/agents/<slug>/activity`).
- *
- * NOT the inbox — that route opens a new reply draft and renders
- * "No conversation selected" for a routine link.
+ * Build the canonical per-agent Runs URL, optionally linking to one durable run.
  */
-function buildRoutineActivityUrl(params: {
+function buildAgentRunsUrl(params: {
     baseUrl?: string;
     workspaceSlug?: string;
     agentEntityId?: string;
-    routineId: string;
     routineRunId?: string;
 }): string | undefined {
     if (!params.workspaceSlug) return undefined;
     const agentSlug = agentSlugFromEntityId(params.agentEntityId);
     if (!agentSlug) return undefined;
 
-    const base = `${normalizeBaseUrl(params.baseUrl)}/en/${encodeURIComponent(params.workspaceSlug)}/agents/${encodeURIComponent(agentSlug)}/activity`;
+    const base = `${normalizeBaseUrl(params.baseUrl)}/en/${encodeURIComponent(params.workspaceSlug)}/agents/${encodeURIComponent(agentSlug)}/runs`;
 
     if (params.routineRunId) {
-        const activityId = `agent-routine:${params.routineId}:${params.routineRunId}`;
-        return `${base}/${encodeURIComponent(activityId)}`;
+        return `${base}/${encodeURIComponent(params.routineRunId)}`;
     }
     return base;
 }
@@ -102,6 +94,10 @@ function objectValue(value: unknown): Record<string, unknown> {
     return isRecord(value) ? value : {};
 }
 
+function withoutLegacyActivityUrl(value: unknown): Record<string, unknown> {
+    return Object.fromEntries(Object.entries(objectValue(value)).filter(([key]) => key !== 'activity'));
+}
+
 function decorateRoutineWithUrls<T extends Record<string, unknown>>(routine: T, context: RoutineUrlContext): T {
     const routineId = typeof routine.id === 'string' ? routine.id : typeof routine.routineId === 'string' ? routine.routineId : undefined;
     if (!routineId) return { ...routine };
@@ -111,46 +107,65 @@ function decorateRoutineWithUrls<T extends Record<string, unknown>>(routine: T, 
     // the agent-namespace guess when none is configured. The `@<namespace>` suffix
     // is NOT a reliable workspace slug — see inferWorkspaceSlugFromAgent.
     const workspaceSlug = context.workspaceSlug || inferWorkspaceSlugFromAgent(agentEntityId);
-    // When the API returns the latest run, deep-link straight to its
-    // activity-detail page; otherwise link the agent's activity list.
     const latestRun = objectValue(routine.latestRun);
     const latestRunId = typeof latestRun.id === 'string' ? latestRun.id : undefined;
-    const activityUrl = buildRoutineActivityUrl({
+    const runsUrl = buildAgentRunsUrl({
         baseUrl: context.baseUrl,
         workspaceSlug,
         agentEntityId,
-        routineId,
-        routineRunId: latestRunId,
     });
+    const acceptedRunId = typeof routine.runId === 'string' ? routine.runId : undefined;
 
     const decorated: Record<string, unknown> = { ...routine };
-    if (activityUrl) {
+    if (runsUrl) {
         decorated.urls = {
-            ...objectValue(routine.urls),
-            activity: activityUrl,
+            ...withoutLegacyActivityUrl(routine.urls),
+            runs: runsUrl,
         };
+    }
+
+    if (acceptedRunId) {
+        const acceptedRunDetailUrl = buildAgentRunsUrl({
+            baseUrl: context.baseUrl,
+            workspaceSlug,
+            agentEntityId,
+            routineRunId: acceptedRunId,
+        });
+        if (acceptedRunDetailUrl) {
+            decorated.urls = {
+                ...withoutLegacyActivityUrl(decorated.urls),
+                detail: acceptedRunDetailUrl,
+            };
+        }
+    }
+
+    if (latestRunId) {
+        const latestRunDetailUrl = buildAgentRunsUrl({
+            baseUrl: context.baseUrl,
+            workspaceSlug,
+            agentEntityId,
+            routineRunId: latestRunId,
+        });
+        decorated.latestRun = latestRunDetailUrl
+            ? { ...latestRun, urls: { ...withoutLegacyActivityUrl(latestRun.urls), detail: latestRunDetailUrl } }
+            : { ...latestRun };
     }
 
     if (Array.isArray(routine.runLog)) {
         decorated.runLog = routine.runLog.map((run: unknown) => {
             if (!isRecord(run)) return run;
-            const routineRunId = typeof run.id === 'string'
-                ? run.id
-                : typeof run.timestamp === 'string'
-                    ? run.timestamp
-                    : undefined;
-            const runActivityUrl = routineRunId
-                ? buildRoutineActivityUrl({
+            const routineRunId = typeof run.id === 'string' ? run.id : undefined;
+            const runDetailUrl = routineRunId
+                ? buildAgentRunsUrl({
                     baseUrl: context.baseUrl,
                     workspaceSlug,
                     agentEntityId,
-                    routineId,
                     routineRunId,
                 })
                 : undefined;
 
-            return runActivityUrl
-                ? { ...run, urls: { ...objectValue(run.urls), activity: runActivityUrl } }
+            return runDetailUrl
+                ? { ...run, urls: { ...withoutLegacyActivityUrl(run.urls), detail: runDetailUrl } }
                 : { ...run };
         });
     }
@@ -162,6 +177,27 @@ export function decorateRoutineResponseWithUrls<T>(response: T, context: Routine
     if (!response || typeof response !== 'object') return response;
 
     const value = response as Record<string, unknown>;
+    if (isRecord(value.run)) {
+        const run = value.run;
+        const agentEntityId = typeof run.agentEntityId === 'string' ? run.agentEntityId : undefined;
+        const workspaceSlug = context.workspaceSlug || inferWorkspaceSlugFromAgent(agentEntityId);
+        const runId = typeof run.id === 'string' ? run.id : undefined;
+        const detailUrl = runId
+            ? buildAgentRunsUrl({
+                baseUrl: context.baseUrl,
+                workspaceSlug,
+                agentEntityId,
+                routineRunId: runId,
+            })
+            : undefined;
+        return {
+            ...value,
+            run: detailUrl
+                ? { ...run, urls: { ...withoutLegacyActivityUrl(run.urls), detail: detailUrl } }
+                : { ...run },
+        } as T;
+    }
+
     if (Array.isArray(value.routines)) {
         return {
             ...value,
@@ -345,6 +381,32 @@ of: codex, claude, ui, api, mcp.`,
         async ({ routine_id, source, reason }, extra) => {
             const client = clientFactory(extra);
             const result = await client.triggerRoutine(routine_id, { source, reason });
+            const decorated = decorateRoutineResponseWithUrls(result, routineUrlContext());
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(decorated, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
+        'get_routine_run',
+        `Read one exact durable routine run and a bounded page of its ordered events.
+This is read-only and does not run, retry, resume, pause, approve, or send anything.`,
+        {
+            routine_id: z.string().describe('Routine ID'),
+            run_id: z.string().describe('Durable routine run ID returned by trigger_routine'),
+            limit: z.number().int().min(1).max(200).optional().describe('Maximum events to return (default 100, maximum 200)'),
+            next_token: z.string().optional().describe('Opaque event pagination token'),
+        },
+        async ({ routine_id, run_id, limit, next_token }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.getRoutineRun(routine_id, run_id, {
+                limit,
+                nextToken: next_token,
+            });
             const decorated = decorateRoutineResponseWithUrls(result, routineUrlContext());
             return {
                 content: [{

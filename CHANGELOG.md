@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Configurable Home Recent tab
+
+- Added `inspect_home_recent_tab` and `configure_home_recent_tab` with
+  inspect-before-write revision protection, bounded workflow sources, and one
+  optional navigation CTA per workflow.
+- Reported the full Home tab strip from `inspect_home_recent_tab` (`tabs` plus
+  `defaultTabId`) and added `defaultTabId` to the configuration so agents can
+  make the Recent tab or any use-case tab the default one.
+- Marked an unconfigured Recent tab with `visibleWhenRunsExist` so agents know Home
+  shows it only once the workspace has runs.
+- Kept the contract display-only: these tools do not run workflows, call
+  providers, spend credits, change approvals, send, publish, or mutate customer
+  records.
+
 ## [0.19.2] - MCP Server
 
 ### Typed onboarding-goal management

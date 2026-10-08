@@ -234,6 +234,25 @@ To debug the actual prompt used for this step invocation, inspect metadata.compu
     );
 
     server.tool(
+        'get_imap_reply_body',
+        `Read and conservatively classify only the exact inbound body behind one already-correlated canonical IMAP replied tracking event. This is not a mailbox browser: the server derives the workspace, mailbox, and Message-ID from the canonical event, reads no attachments or remote content, enforces byte/message caps, suppresses no-reply follow-ups, and never sends a response. The external tool is read-only and does not persist the inspection.`,
+        {
+            workflowId: z.string().describe('Exact workflow that owns the canonical replied tracking event'),
+            trackingEventId: z.string().describe('Exact canonical IMAP replied TrackingEvent ID'),
+        },
+        async ({ workflowId, trackingEventId }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.getImapReplyBody(workflowId, trackingEventId);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        }
+    );
+
+    server.tool(
         'stop_execution',
         'Stop an active workflow execution. Works on executions with status "running", "pending", or "started"; requires a human-readable reason persisted in execution metadata.',
         {
@@ -397,10 +416,10 @@ If no timelineId is provided, the most recent timeline for that step is automati
     //
     // Reserve these for **exceptional** ops work, not day-to-day patching:
     //
-    //  - `patch_timeline_fields` is for fixing a *pending* approval timeline
-    //    when the upstream AI-step output came out wrong (e.g. malformed
-    //    `email.to` shape blocking the send). Without this you'd have to
-    //    rerun the entire AI step and re-burn its credits.
+    //  - `patch_timeline_fields` is for incident repair outside the normal
+    //    preview-approval edit contract (for example a malformed legacy
+    //    timeline or terminal evidence repair). Healthy `_previewApproval`
+    //    drafts should use the regular approval editor/run-side agent tool.
     //  - `patch_execution_fields` is mainly for relabeling a stuck, completed,
     //    or test run's `executionName` to disambiguate it after the fact, or
     //    advancing an execution out of `waiting`/`failed` into `running` for
@@ -414,13 +433,13 @@ If no timelineId is provided, the most recent timeline for that step is automati
         `Surgically edit a timeline's eventSummary, pending approval eventContent, or metadata fields without rerunning the upstream step. Terminal eventSummary-only relabels do not require confirmTimelineId; other terminal repairs require exact-ID confirmation.
 
 EXCEPTION-ONLY tool. Use cases:
-  - Fix a malformed email.to / subject / body in a pending email-draft step (no need to re-run the LLM)
+  - Repair a malformed legacy/non-preview pending timeline that the regular approval editor cannot handle
   - Relabel a terminal timeline's eventSummary so the timeline row matches confirmed outcome, similar to metadata.executionName relabels on executions
   - Update metadata.pendingReasonTag for UI annotation
   - Recover a failed timeline back to pending (status transition: failed → pending)
   - Repair corrupted eventContent on a completed/approved/rejected terminal timeline after an incident, only when rerun/retry would duplicate side effects or lose canonical output
 
-DO NOT use for day-to-day data fixes — most edits should happen by re-running the step or updating the workflow definition. This tool exists for incident response, not regular workflow operation.
+DO NOT use for normal pending approval changes. Edit a healthy _previewApproval draft in place through the approval card or run-side agent; do not rerun it merely to change copy, recipients, dates, links, or media. This admin tool exists for incident response outside that regular contract.
 
 Required:
   - API key with admin:patch scope (Stage 2 — without it returns 403 FORBIDDEN_SCOPE)

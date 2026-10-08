@@ -17,11 +17,12 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { createRequire } from 'node:module';
 import { createServer } from './server.js';
-import { verifyMcpToken } from './auth.js';
+import { tokenMatchesWorkspace, verifyMcpToken } from './auth.js';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const AGENTLED_URL = process.env.AGENTLED_URL || 'https://www.agentled.app';
 const MCP_BASE_URL = process.env.MCP_BASE_URL || 'https://mcp.agentled.app';
+const MCP_OAUTH_SCOPES = ['mcp:read', 'mcp:full', 'offline_access'];
 const require = createRequire(import.meta.url);
 const mcpPackage = require('../package.json') as { version: string };
 const corePackage = require('@agentled/core/package.json') as { version: string };
@@ -163,7 +164,7 @@ async function main() {
             sendJson(res, 200, {
                 resource: resourceUrl,
                 authorization_servers: [`${MCP_BASE_URL}${wsPrefix}`],
-                scopes_supported: ['mcp:full'],
+                scopes_supported: MCP_OAUTH_SCOPES,
                 bearer_methods_supported: ['header'],
             }, { 'Cache-Control': 'public, max-age=3600' });
             return;
@@ -179,7 +180,7 @@ async function main() {
                 grant_types_supported: ['authorization_code', 'refresh_token'],
                 code_challenge_methods_supported: ['S256'],
                 token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic'],
-                scopes_supported: ['mcp:full'],
+                scopes_supported: MCP_OAUTH_SCOPES,
                 service_documentation: AGENTLED_URL,
                 logo_uri: `${AGENTLED_URL}/images/logos/icon-180.png`,
             }, { 'Cache-Control': 'public, max-age=3600' });
@@ -289,7 +290,7 @@ async function main() {
                 const payload = await verifyMcpToken(token);
 
                 // Verify JWT workspace matches URL workspace
-                if (payload.workspaceId !== urlWorkspaceId) {
+                if (!tokenMatchesWorkspace(payload, urlWorkspaceId)) {
                     sendJson(res, 403, { error: 'Token workspace does not match URL workspace' });
                     return;
                 }
@@ -298,7 +299,7 @@ async function main() {
                 (req as any).auth = {
                     token,
                     clientId: payload.sub,
-                    scopes: [payload.scope],
+                    scopes: payload.scope.split(/\s+/).filter(Boolean),
                     extra: {
                         workspaceId: payload.workspaceId,
                         userId: payload.userId,

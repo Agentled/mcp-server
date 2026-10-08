@@ -16,6 +16,13 @@ export interface McpTokenPayload {
     scope: string;
 }
 
+export function tokenMatchesWorkspace(
+    payload: Pick<McpTokenPayload, 'workspaceId'>,
+    urlWorkspaceId: string | null,
+): boolean {
+    return Boolean(urlWorkspaceId) && payload.workspaceId === urlWorkspaceId;
+}
+
 /**
  * Verify a Bearer JWT token and extract the payload.
  * Throws on invalid/expired tokens.

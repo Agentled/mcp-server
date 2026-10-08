@@ -4,8 +4,35 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { SurgicalStepOpError } from '@agentled/core';
 import type { ClientFactory } from '../server.js';
 import { findStepShape, listShapesForStepType, STEP_SHAPES } from '../step-shapes.js';
+
+function surgicalStepToolResult(result: unknown) {
+    return {
+        content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+        }],
+    };
+}
+
+function surgicalStepToolError(err: unknown) {
+    if (err instanceof SurgicalStepOpError) {
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    error: err.message,
+                    code: err.code,
+                    ...(err.path ? { path: err.path } : {}),
+                }, null, 2),
+            }],
+            isError: true as const,
+        };
+    }
+    throw err;
+}
 
 function parseMetadata(metadata: any): Record<string, any> | null {
     if (!metadata) return null;
@@ -296,7 +323,9 @@ Key rules:
 - Every upserted row needs a \`userKey\` (URL, domain, LinkedIn URL, email) for O(1) cross-run dedup.
 - Use \`entryConditions.criteria[{ type: "loop_completion" }]\` with \`onCriteriaFail: "wait"\` before cross-phase reads that depend on a loop finishing.
 
-The \`Loop Enrich & Filter\` block above hints at the same fan-in mechanism: for post-loop convergence, use \`entryConditions.criteria[{ type: "loop_completion" }]\` with \`onCriteriaFail: "wait"\` — do not use \`scope\` as the runtime wait mechanism.`,
+The \`Loop Enrich & Filter\` block above hints at the same fan-in mechanism: for post-loop convergence, use \`entryConditions.criteria[{ type: "loop_completion" }]\` with \`onCriteriaFail: "wait"\` — do not use \`scope\` as the runtime wait mechanism.
+
+For expected no-work exits only, an \`entryConditions\` stop may set \`terminalDisplay: "completed_no_work"\` with \`onCriteriaFail: "stop"\` and concise \`onCriteriaFailText\`. Never use it for failed prerequisites, thresholds, approvals, provider errors, or manual stops.`,
         {
             pipeline: z.record(z.string(), z.any()).describe('The pipeline definition object'),
             locale: z.string().optional().describe('Locale (default: en)'),
@@ -577,9 +606,14 @@ also cleaned up. Respects draft snapshot routing for live workflows.`,
 
     server.tool(
         'update_step',
-        `Update a single step in a workflow by step ID. **Preferred path for any single-step edit on an existing workflow** — only the fields in \`updates\` / \`replace\` / \`unset\` are touched, every other step and field is left as-is.
+        `Update a single step by ID. Low-level merge primitive — prefer surgical tools for common single-path edits:
 
-Use this instead of \`update_workflow\` for any one-step change (prompt, inputs, entry conditions, switching shape, swapping tools). \`update_workflow\` with a full \`steps\` array is for imports/round-trips only.
+- \`replace_step_dictionary\` — merge keys into \`fieldUpdates\` / \`responseStructure\` / \`fieldMapping\` without dropping siblings
+- \`replace_step_path\` — set one nested path while preserving siblings (e.g. \`renderer.config.layout\`)
+- \`unset_step_path\` — delete one path
+- \`append_step_array_item\` / \`remove_step_array_item\` — mutate \`tools\` / \`integrations\` safely
+
+Keep \`update_step\` for complex multi-path edits, shape conversions, and batch changes. Prefer it over \`update_workflow\` for any one-step change; full \`steps\` arrays are for imports/round-trips only.
 
 ## KG-First — when editing a prompt template
 
@@ -599,22 +633,17 @@ If this edit introduces or changes workspace-specific content in a prompt templa
 
 | Situation | Verb | Example |
 |---|---|---|
-| Change one config key, keep siblings | \`updates\` | \`updates: { pipelineStepPrompt: { template: "new..." } }\` keeps \`responseStructure\` |
+| Change one config key, keep siblings | \`updates\` | \`updates: { pipelineStepPrompt: { template: "new..." } }\` |
 | Add a stepInputData entry | \`updates\` | \`updates: { stepInputData: { profileUrls: "{{input.url}}" } }\` |
-| Replace a dictionary wholesale (keys = user data) | \`replace\` | \`updates: { stepInputData: { fieldUpdates: {...} } }, replace: ["stepInputData.fieldUpdates"]\` |
-| Replace \`responseStructure\` / \`knowledgeSync.fieldMapping\` | \`replace\` | \`replace: ["pipelineStepPrompt.responseStructure"]\` |
-| Remove a step input | \`unset\` | \`unset: ["stepInputData.oldKey"]\` |
-| Swap full arrays (tools, integrations) | \`updates\` | \`updates: { tools: [...] }\` (arrays already replaced wholesale) |
+| Dictionary key merge | surgical | \`replace_step_dictionary({ path: "stepInputData.fieldUpdates", value: {...} })\` |
+| Remove a step input | \`unset\` / surgical | \`unset_step_path\` or \`unset: ["stepInputData.oldKey"]\` |
+| Swap full arrays | \`updates\` / surgical | \`append_step_array_item\` or \`updates: { tools: [...] }\` |
 
-**The trap.** Default deep-merge is one level deep — patching \`stepInputData.fieldUpdates\` with a partial dict silently wipes the others. Either send the FULL dict + \`replace: ["stepInputData.fieldUpdates"]\`, or call \`get_step\` first, edit locally, send back via \`replace\`.
-
-## Read-before-write for dictionary fields
-
-For dictionary fields where keys are user data (\`stepInputData.fieldUpdates\`, \`responseStructure\`, \`fieldMapping\`): \`get_step\` (~1KB), modify locally, send full object back under \`replace[]\`.
+**The trap.** Patching \`stepInputData.fieldUpdates\` with a partial dict via raw \`updates\` silently wipes siblings. Prefer \`replace_step_dictionary\`.
 
 ## Diff + warnings
 
-Response includes \`diff: { addedPaths, changedPaths, removedPaths }\` and \`warnings[]\`. ≥6 fields removed without explicit \`unset\` triggers a warning — usually a "you wiped a dictionary" signal.
+Response includes \`diff: { addedPaths, changedPaths, removedPaths }\` and \`warnings[]\`. ≥6 fields removed without explicit \`unset\` triggers a warning.
 
 ## Shape conversions
 
@@ -659,7 +688,7 @@ When a draft exists, the response carries a \`draft\` summary: \`{ exists, draft
 
 This returns the configured step definition only. To debug the actual prompt used in a specific execution, use \`list_timelines\` then \`get_timeline\` for that step invocation and inspect \`metadata.computedPrompt\`.
 
-**Use this before editing dictionary-shaped fields** (\`stepInputData.fieldUpdates\`, \`responseStructure\`, \`knowledgeSync.fieldMapping\`, \`agent.workers\`) so you can fetch the current value, modify it locally, and send the full new object back via \`update_step\` with \`replace: ["<path>"]\`. Avoids the "patched one key, silently wiped the others" trap.
+**Use this before editing dictionary-shaped fields** (\`stepInputData.fieldUpdates\`, \`responseStructure\`, \`knowledgeSync.fieldMapping\`, \`agent.workers\`) when you need the current value for a complex local edit. For common single-key dictionary merges and nested path sets, prefer \`replace_step_dictionary\` / \`replace_step_path\` instead of hand-rolling \`update_step\` + \`replace[]\`.
 
 ## Source resolution
 
@@ -706,6 +735,153 @@ The response includes the resolved \`source: "live" | "draft"\` so you know whic
                     text: JSON.stringify(result, null, 2),
                 }],
             };
+        }
+    );
+
+    server.tool(
+        'replace_step_dictionary',
+        `Preferred for dictionary-shaped step fields where keys are user data.
+
+Merges the provided object keys into the existing dictionary at \`path\` without dropping sibling keys. Internally: \`get_step\` → merge → \`update_step\` with a safe top-level \`replace\`.
+
+Canonical paths:
+- \`stepInputData.fieldUpdates\`
+- \`pipelineStepPrompt.responseStructure\`
+- \`knowledgeSync.fieldMapping\`
+
+Use raw \`update_step\` only when you intentionally want a wholesale dictionary rewrite or a multi-path batch edit.
+
+Returns the same shape as \`update_step\` (merged step, diff, warnings, validation, draft metadata).`,
+        {
+            workflowId: z.string().describe('The workflow ID'),
+            stepId: z.string().describe('The step ID to update'),
+            path: z.string().describe('Dot-path to the dictionary (e.g. "stepInputData.fieldUpdates")'),
+            value: z.record(z.string(), z.any()).describe('Plain object of keys to merge into the existing dictionary'),
+        },
+        async ({ workflowId, stepId, path, value }, extra) => {
+            try {
+                const client = clientFactory(extra);
+                const result = await client.replaceStepDictionary(workflowId, stepId, path, value);
+                return surgicalStepToolResult(result);
+            } catch (err) {
+                return surgicalStepToolError(err);
+            }
+        }
+    );
+
+    server.tool(
+        'replace_step_path',
+        `Set one nested step path to \`value\` while preserving sibling fields.
+
+Preferred for nested config edits such as \`renderer.config.layout\` where a naive \`update_step\` patch would wipe sibling config keys. Internally reads the step, clones the owning top-level field, applies the path write, then calls \`update_step\` with \`replace\` on that top-level field.
+
+For dictionary key merges (\`fieldUpdates\`, \`responseStructure\`, \`fieldMapping\`), prefer \`replace_step_dictionary\` instead.
+
+Returns the same shape as \`update_step\`.`,
+        {
+            workflowId: z.string().describe('The workflow ID'),
+            stepId: z.string().describe('The step ID to update'),
+            path: z.string().describe('Dot-path to set (e.g. "renderer.config.layout")'),
+            value: z.any().describe('New value for the path'),
+        },
+        async ({ workflowId, stepId, path, value }, extra) => {
+            try {
+                const client = clientFactory(extra);
+                const result = await client.replaceStepPath(workflowId, stepId, path, value);
+                return surgicalStepToolResult(result);
+            } catch (err) {
+                return surgicalStepToolError(err);
+            }
+        }
+    );
+
+    server.tool(
+        'unset_step_path',
+        `Delete one step path. Thin wrapper around \`update_step({ unset: [path] })\`.
+
+Use for removing a stale input, config key, or leftover type-specific field after a shape change. The path must currently exist on the step.
+
+Returns the same shape as \`update_step\`.`,
+        {
+            workflowId: z.string().describe('The workflow ID'),
+            stepId: z.string().describe('The step ID to update'),
+            path: z.string().describe('Dot-path to delete (e.g. "stepInputData.oldKey")'),
+        },
+        async ({ workflowId, stepId, path }, extra) => {
+            try {
+                const client = clientFactory(extra);
+                const result = await client.unsetStepPath(workflowId, stepId, path);
+                return surgicalStepToolResult(result);
+            } catch (err) {
+                return surgicalStepToolError(err);
+            }
+        }
+    );
+
+    server.tool(
+        'append_step_array_item',
+        `Append one item to a step array path without accidentally replacing the whole array with a single-element list.
+
+Preferred for \`tools\`, \`integrations\`, and similar arrays. Internally: \`get_step\` → append → safe \`update_step\` replace.
+
+Returns the same shape as \`update_step\`.`,
+        {
+            workflowId: z.string().describe('The workflow ID'),
+            stepId: z.string().describe('The step ID to update'),
+            path: z.string().describe('Dot-path to the array (e.g. "tools")'),
+            value: z.any().describe('Item to append'),
+        },
+        async ({ workflowId, stepId, path, value }, extra) => {
+            try {
+                const client = clientFactory(extra);
+                const result = await client.appendStepArrayItem(workflowId, stepId, path, value);
+                return surgicalStepToolResult(result);
+            } catch (err) {
+                return surgicalStepToolError(err);
+            }
+        }
+    );
+
+    server.tool(
+        'remove_step_array_item',
+        `Remove one item from a step array path by \`index\` or exact \`match\` value.
+
+Provide exactly one of \`index\` or \`match\`. Prefer this over sending a hand-built shorter array via raw \`update_step\` when you only need to drop one entry.
+
+Returns the same shape as \`update_step\`.`,
+        {
+            workflowId: z.string().describe('The workflow ID'),
+            stepId: z.string().describe('The step ID to update'),
+            path: z.string().describe('Dot-path to the array (e.g. "tools")'),
+            index: z.number().int().nonnegative().optional().describe('Zero-based index to remove'),
+            match: z.any().optional().describe('Exact array item value to remove (JSON-equality match)'),
+        },
+        async ({ workflowId, stepId, path, index, match }, extra) => {
+            try {
+                const client = clientFactory(extra);
+                if (typeof index === 'number' && match !== undefined) {
+                    throw new SurgicalStepOpError(
+                        'INVALID_SELECTOR',
+                        'Provide exactly one of `index` or `match` to remove an array item.',
+                        path,
+                    );
+                }
+                if (typeof index === 'number') {
+                    const result = await client.removeStepArrayItem(workflowId, stepId, path, { index });
+                    return surgicalStepToolResult(result);
+                }
+                if (match !== undefined) {
+                    const result = await client.removeStepArrayItem(workflowId, stepId, path, { match });
+                    return surgicalStepToolResult(result);
+                }
+                throw new SurgicalStepOpError(
+                    'INVALID_SELECTOR',
+                    'Provide exactly one of `index` or `match` to remove an array item.',
+                    path,
+                );
+            } catch (err) {
+                return surgicalStepToolError(err);
+            }
         }
     );
 

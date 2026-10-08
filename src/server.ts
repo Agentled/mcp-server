@@ -27,8 +27,11 @@ import { registerAiBuilderTools } from './tools/ai-builders.js';
 import { registerUseCaseTools } from './tools/use-cases.js';
 import { registerWorkspaceViewTools } from './tools/workspace-views.js';
 import { registerWorkspaceProvisioningTools } from './tools/workspace-provisioning.js';
+import { registerWorkspacePackageTools } from './tools/workspace-packages.js';
+import { registerAgentApprovalTools } from './tools/agent-approvals.js';
 import { registerAppResources } from './resources/apps.js';
 import { registerWorkflowResources } from './resources/workflows.js';
+import { registerMcpToolAccessControl } from './tool-access.js';
 
 /**
  * Factory function that creates an AgentledClient per request.
@@ -77,6 +80,7 @@ export function createServer(): McpServer {
     });
 
     const clientFactory = createClientFactory();
+    registerMcpToolAccessControl(server);
 
     // Register tools
     registerWorkflowTools(server, clientFactory);
@@ -99,6 +103,8 @@ export function createServer(): McpServer {
     registerUseCaseTools(server, clientFactory);
     registerWorkspaceViewTools(server, clientFactory);
     registerWorkspaceProvisioningTools(server, clientFactory);
+    registerWorkspacePackageTools(server, clientFactory);
+    registerAgentApprovalTools(server, clientFactory);
 
     // Register resources
     registerAppResources(server, clientFactory);

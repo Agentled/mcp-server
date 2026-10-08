@@ -1,0 +1,21 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agentled",
+  "version": "0.20.0",
+  "description": "AgentLed skills with pinned local stdio MCP via @agentled/mcp-server; AgentLed remains the workspace control plane.",
+  "author": {
+    "name": "Agentled",
+    "url": "https://www.agentled.ai"
+  },
+  "homepage": "https://www.agentled.ai/en",
+  "repository": "https://github.com/Agentled/mcp-server",
+  "license": "MIT",
+  "keywords": [
+    "agentled",
+    "agent-skills",
+    "mcp",
+    "social-media",
+    "instagram",
+    "automation"
+  ]
+}

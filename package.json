@@ -1,6 +1,6 @@
 {
   "name": "@agentled/mcp-server",
-  "version": "0.19.3",
+  "version": "0.20.0",
   "mcpName": "io.github.Agentled/mcp-server",
   "description": "MCP server for Agentled — intelligent AI workflow orchestration with long-term memory, 100+ integrations, and unified credits.",
   "type": "module",
@@ -14,6 +14,7 @@
   "files": [
     "dist/",
     "skills/",
+    "plugins/",
     "scaffolds/",
     "setup-skills.mjs",
     "README.md",
@@ -32,7 +33,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agentled/core": "^0.2.17",
+    "@agentled/core": "^0.2.19",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "jose": "^6.2.2",
     "zod": "^3.25.0"

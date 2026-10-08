@@ -3,105 +3,9 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { listRegisteredAgentSkills } from '@agentled/core';
 import { z } from 'zod';
 import type { ClientFactory } from '../server.js';
-
-const SKILLS = [
-    {
-        id: 'outcome-solver',
-        version: 1,
-        label: 'Business Strategist',
-        description: 'Understand the business outcome, do a bounded first pass, and propose repeatable operating assets.',
-        category: 'base',
-        surfaces: ['general', 'routine', 'external'],
-        risks: ['read'],
-    },
-    {
-        id: 'workflow-manager',
-        version: 1,
-        label: 'Workflow Builder',
-        description: 'Create, inspect, validate, and draft-safely edit workflows and workflow groups.',
-        category: 'workflow',
-        surfaces: ['general', 'pipeline-editor', 'routine', 'external'],
-        risks: ['read', 'write'],
-        requiresApprovalForActivation: true,
-    },
-    {
-        id: 'agent-manager',
-        version: 1,
-        label: 'Agent Builder',
-        description: 'Propose goal groups and create or update draft specialist owner agents with scoped access.',
-        category: 'agent-admin',
-        surfaces: ['general', 'external'],
-        risks: ['read', 'write', 'admin', 'autonomous'],
-        requiresApprovalForActivation: true,
-    },
-];
-
-const RUNTIME_SKILLS = [
-    {
-        id: 'workflow-operator',
-        version: 1,
-        label: 'Workflow Operator',
-        description: 'Hidden runtime bundle for guarded assigned-workflow inspection and draft-safe fixes.',
-        category: 'workflow',
-        surfaces: ['general', 'pipeline-editor', 'routine', 'external'],
-        risks: ['read', 'write'],
-        mcpVisible: false,
-    },
-    {
-        id: 'inline-execution',
-        version: 1,
-        label: 'Inline Execution',
-        description: 'Hidden runtime bundle for eligible app-action execution through approval, billing, and audit policy.',
-        category: 'execution',
-        surfaces: ['general', 'channel', 'routine', 'external'],
-        risks: ['read', 'write', 'send'],
-        requiresApprovalForActivation: true,
-        mcpVisible: false,
-    },
-    {
-        id: 'template-runner',
-        version: 1,
-        label: 'Template Runner',
-        description: 'Hidden runtime bundle for workflow/template discovery, input collection, and reusable workflow starts.',
-        category: 'workflow',
-        surfaces: ['general', 'external'],
-        risks: ['read', 'write'],
-        mcpVisible: false,
-    },
-    {
-        id: 'routine-core',
-        version: 1,
-        label: 'Routine Core',
-        description: 'Hidden routine-surface bundle for routine memory, assigned workflow, and workspace knowledge context.',
-        category: 'base',
-        surfaces: ['routine'],
-        risks: ['read', 'autonomous'],
-        mcpVisible: false,
-    },
-    {
-        id: 'channel-email',
-        version: 1,
-        label: 'Email Channel',
-        description: 'Hidden channel-surface bundle for email-channel context; it does not grant sends by itself.',
-        category: 'communication',
-        surfaces: ['channel'],
-        risks: ['read', 'send'],
-        mcpVisible: false,
-    },
-    {
-        id: 'routine-manager',
-        version: 1,
-        label: 'Routine Manager',
-        description: 'Hidden control-plane bundle for creating paused routine drafts; activation still requires approval.',
-        category: 'agent-admin',
-        surfaces: ['general', 'external'],
-        risks: ['read', 'write', 'autonomous', 'admin'],
-        requiresApprovalForActivation: true,
-        mcpVisible: false,
-    },
-];
 
 export function registerAgentSkillTools(server: McpServer, clientFactory: ClientFactory) {
     server.tool(
@@ -117,7 +21,9 @@ The agent-manager and routine-manager skills are control-plane tools for draft g
         async ({ includeRuntime }) => ({
             content: [{
                 type: 'text' as const,
-                text: JSON.stringify({ skills: includeRuntime ? [...SKILLS, ...RUNTIME_SKILLS] : SKILLS }, null, 2),
+                text: JSON.stringify({
+                    skills: listRegisteredAgentSkills({ includeHidden: includeRuntime === true }),
+                }, null, 2),
             }],
         }),
     );

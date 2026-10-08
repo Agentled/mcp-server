@@ -1,9 +1,10 @@
 # AgentLed Grok Build marketplace submission
 
-Use this packet only after the source commit below is public and immutable.
-The plugin contains no workspace credentials. It starts the published
-`@agentled/mcp-server` package locally; users authenticate through their own
-AgentLed CLI profile.
+Use this packet only after the AgentLed plugin source has been published to the
+official `Agentled/mcp-server` repository. Do not substitute a local commit,
+branch name, tag, or abbreviated SHA.
+
+## Marketplace entry
 
 ```json
 {
@@ -22,12 +23,20 @@ AgentLed CLI profile.
 }
 ```
 
-Before opening the xAI marketplace pull request:
+## Required evidence before opening xAI's PR
 
-1. Verify the SHA resolves on the public `Agentled/mcp-server` repository.
-2. Verify `plugins/agentled/.grok-plugin/plugin.json` and `.mcp.json` contain
-   no credentials, workspace IDs, or customer data.
-3. Validate the plugin with the Grok Build validator when available.
-4. Confirm the package named in `.mcp.json` is published and immutable.
-5. Keep the public claim to beta/read-only discovery until a disposable
-   workspace OAuth proof has been observed.
+- The `source.sha` is the full, lowercase SHA of a public `Agentled/mcp-server`
+  commit that contains `.grok-plugin/plugin.json`, `.mcp.json`, the plugin
+  README, and the bundled skills.
+- `grok plugin validate plugins/agentled` passes in a Grok Build environment.
+- The plugin contains no API key, OAuth client secret, token, customer
+  workspace ID, or user credential.
+- The README says the bundled MCP is local stdio and requires explicit local
+  AgentLed authentication. It does not claim a remote OAuth connection.
+- A separate read-only Grok custom-connector check has verified the existing
+  workspace-scoped OAuth metadata and consent path.
+- In `xai-org/plugin-marketplace`, add the entry, regenerate the component
+  index, run its catalog validator and index check, then open a pull request.
+
+The marketplace PR is a request for xAI review, not proof that AgentLed is
+listed or available in the marketplace.

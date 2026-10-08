@@ -35,6 +35,7 @@ export type StepShapeKey =
     | 'code:standard'
     // share step
     | 'share:public'
+    | 'share:workspace'
     // knowledgeSync
     | 'knowledgeSync:standard'
     // workflow-level page schemas (NOT pipeline steps — they live under
@@ -299,7 +300,7 @@ const SHARE_PUBLIC: StepShape = {
     key: 'share:public',
     stepType: 'share',
     shape: 'public',
-    description: 'Create a public share URL for prior step output. Pair with an aiAction:report upstream.',
+    description: 'Create a public snapshot URL for prior step output. Use only when the user explicitly wants anyone-with-the-link access.',
     example: {
         id: 'share-report',
         type: 'share',
@@ -312,7 +313,31 @@ const SHARE_PUBLIC: StepShape = {
         next: { stepId: 'next-step' },
     },
     notes: [
-        'Outputs: `{ shareId, shareUrl, expiresAt }`. Reference `{{steps.share-report.shareUrl}}` in downstream steps.',
+        'Outputs: `{ shareId, shareUrl, visibility, expiresAt }`. Reference `{{steps.share-report.shareUrl}}` in downstream steps.',
+        'For client/workspace data prefer `share:workspace` instead.',
+    ],
+};
+
+const SHARE_WORKSPACE: StepShape = {
+    key: 'share:workspace',
+    stepType: 'share',
+    shape: 'workspace',
+    description: 'Create a workspace-authenticated live report URL. Recommended for client data, scoring, sourcing, and CRM-derived reports.',
+    example: {
+        id: 'share-report',
+        type: 'share',
+        name: 'Create Workspace Report Link',
+        shareConfig: {
+            visibility: 'workspace',
+            outputPageId: 'report-page',
+        },
+        next: { stepId: 'next-step' },
+    },
+    notes: [
+        'Outputs: `{ shareId, shareUrl, visibility, workspaceId, executionId }`.',
+        'Always persist `visibility: "workspace"` explicitly for client/workspace data.',
+        'Use `visibility: "public"` only when the user explicitly asks for a no-login / anyone-with-the-link link.',
+        'Reference `{{steps.share-report.shareUrl}}` in downstream email or chat steps.',
     ],
 };
 
@@ -597,6 +622,7 @@ export const STEP_SHAPES: StepShape[] = [
     AGENT_ORCHESTRATOR_SUPERVISOR,
     CODE_STANDARD,
     SHARE_PUBLIC,
+    SHARE_WORKSPACE,
     KNOWLEDGE_SYNC_STANDARD,
 ];
 

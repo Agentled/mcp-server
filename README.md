@@ -84,17 +84,21 @@ Then set your API key in the shell Claude Code runs from:
 export AGENTLED_API_KEY=wsk_...
 ```
 
-The plugin bundles the `agentled` skill (workflow-authoring guidance, namespaced `agentled:agentled`) and auto-starts the MCP server via `npx -y @agentled/mcp-server`. The same plugin directory also carries the Codex manifest (`.codex-plugin/`) and Codex lifecycle hooks — one bundle, both hosts.
+### Codex plugin (one-step install)
 
-### Grok Build plugin
+The same repository is a Codex marketplace. Install the Agentled plugin with:
 
-The same portable plugin includes a Grok Build manifest at
-`plugins/agentled/.grok-plugin/plugin.json`. It starts the published local
-stdio MCP server declared in `.mcp.json`; it does not contain an AgentLed API
-key, OAuth client secret, workspace ID, or customer data. Authenticate with
-your own AgentLed CLI profile before installing it in Grok Build, then start
-with read-only tool discovery. Marketplace submission material is in
-[`plugins/agentled/GROK_MARKETPLACE_SUBMISSION.md`](plugins/agentled/GROK_MARKETPLACE_SUBMISSION.md).
+```bash
+codex plugin marketplace add Agentled/mcp-server
+codex plugin add agentled@agentled
+```
+
+Then set `AGENTLED_API_KEY=wsk_...` in the shell that launches Codex and start a
+new task. The plugin bundles the Agentled skills, starts the MCP server through
+`npx -y @agentled/mcp-server`, and loads its lifecycle hooks from the standard
+`hooks/hooks.json` path.
+
+The plugin bundles the `agentled` skill (workflow-authoring guidance, namespaced `agentled:agentled`) and auto-starts the MCP server via `npx -y @agentled/mcp-server`. The same plugin directory carries both Claude Code and Codex manifests — one bundle, both hosts.
 
 For Codex, the hook pack acts as in-session guidance around the CLI/MCP loop:
 session start explains the Agentled/Codex business-loop split, prompt/tool hooks
@@ -310,7 +314,12 @@ state, `WorkspaceUseCase`, workflows, approval queues, and home summary updates.
 | `update_workflow` | Update an existing workflow (top-level scalars; for context/metadata prefer `update_workflow_context`) |
 | `update_workflow_context` | Workflow-level analog of `update_step` — three explicit verbs (`updates` / `replace` / `unset`) on `context.*` and `metadata.*` paths, returns `diff` + `warnings` |
 | `add_step` | Add a step with automatic positioning and next-pointer rewiring |
-| `update_step` | Deep-merge updates into a single step by ID |
+| `update_step` | Low-level deep-merge updates into a single step by ID |
+| `replace_step_dictionary` | Merge keys into a dictionary path (`fieldUpdates`, `responseStructure`, `fieldMapping`) without dropping siblings |
+| `replace_step_path` | Set one nested path while preserving siblings (e.g. `renderer.config.layout`) |
+| `unset_step_path` | Delete one step path |
+| `append_step_array_item` | Append one item to a step array (`tools`, `integrations`, …) |
+| `remove_step_array_item` | Remove one array item by `index` or `match` |
 | `remove_step` | Remove a step with automatic next-pointer rewiring |
 | `delete_workflow` | Permanently delete a workflow |
 | `validate_workflow` | Validate pipeline structure, returns errors per step |
@@ -397,15 +406,22 @@ Flip the flag via `update_workflow_context` — fetch first, merge locally, repl
 
 ### Editing existing workflows: merge model
 
-`update_step` accepts three explicit operations on the same call. At least one must be non-empty.
+Prefer the surgical path tools for common single-path edits — they call `get_step` when needed and map to the same merge contract:
+
+- `replace_step_dictionary` — dictionary key merges (`fieldUpdates`, `responseStructure`, `fieldMapping`)
+- `replace_step_path` — nested path sets that must preserve siblings
+- `unset_step_path` — delete one path
+- `append_step_array_item` / `remove_step_array_item` — array mutations
+
+Keep raw `update_step` for complex multi-path edits. It accepts three explicit operations on the same call; at least one must be non-empty.
 
 - **`updates`** — partial step patch, **deep-merged ONE LEVEL deep**. Top-level scalars are replaced; nested objects (`pipelineStepPrompt`, `stepInputData`, etc.) get their direct keys merged with the stored value's keys. Keys nested two levels deep are overwritten as a unit, not merged.
 - **`replace: string[]`** — dot-paths whose values from `updates` are assigned **wholesale**, skipping the deep-merge. Use this for **dictionary-shaped fields where keys are user data** (not config) — patching one inner key with `updates` alone silently wipes the others.
 - **`unset: string[]`** — dot-paths to delete. Each path must currently exist on the step (validated against the original).
 
-**Read before editing dictionary fields.** Before changing `stepInputData.fieldUpdates`, `pipelineStepPrompt.responseStructure`, `knowledgeSync.fieldMapping`, or any field where keys are user data: call `get_step({ workflowId, stepId })` (~1KB), modify locally, send the full new object back via `replace[]`. This avoids the "patched one key, silently wiped the others" trap.
+**Read before editing dictionary fields.** Prefer `replace_step_dictionary`. With raw `update_step`, call `get_step({ workflowId, stepId })` (~1KB), modify locally, send the full new object back via `replace[]`.
 
-**Diff in the response.** Every `update_step` call returns `diff: { addedPaths, changedPaths, removedPaths }` and `warnings[]`. If the merge silently removed ≥6 fields without an explicit `unset`, a warning fires.
+**Diff in the response.** Every `update_step` / surgical-tool call returns `diff: { addedPaths, changedPaths, removedPaths }` and `warnings[]`. If the merge silently removed ≥6 fields without an explicit `unset`, a warning fires.
 
 **What to use where:**
 
@@ -413,13 +429,13 @@ Flip the flag via `update_workflow_context` — fetch first, merge locally, repl
 |---|---|---|---|
 | `name`, `goal`, `description`, `pipelineStepPrompt.template`, `creditCost` | `update_step` | `updates` | Plain scalar; safe to send alone. |
 | `next`, `loopConfig`, `entryConditions` (full block) | `update_step` | `updates` | Direct nested config; sending the new value wholesale is fine. |
-| `tools`, `integrations` | `update_step` | `updates` | Arrays replace wholesale by design. To append, fetch with `get_step`, splice locally, send the full new array. |
-| `stepInputData.fieldUpdates` | `update_step` | `get_step` → `updates` (full dict) + `replace: ["stepInputData.fieldUpdates"]` | Keys are user data; default one-level merge replaces this dict and can drop sibling mappings. |
-| `pipelineStepPrompt.responseStructure` | `update_step` | `get_step` → `updates` + `replace: ["pipelineStepPrompt.responseStructure"]` | Output-shape dictionary; treat as user data. |
-| `knowledgeSync.fieldMapping` | `update_step` | `get_step` → `updates` + `replace: ["knowledgeSync.fieldMapping"]` | Source→target dict; same trap as `fieldUpdates`. |
-| `renderer.config` (when preserving sibling keys matters) | `update_step` | `updates` (full `renderer.config`) + `replace: ["renderer.config"]` | ⚠ `replace: ["renderer.config.layout"]` does NOT protect `renderer.config`'s siblings — one-level deep-merge runs first on `updates.renderer`. Replace at the parent level. |
+| `tools`, `integrations` | surgical / `update_step` | `append_step_array_item` / `remove_step_array_item`, or `updates` with full array | Arrays replace wholesale by design. |
+| `stepInputData.fieldUpdates` | surgical | `replace_step_dictionary` | Keys are user data; raw one-level merge can drop sibling mappings. |
+| `pipelineStepPrompt.responseStructure` | surgical | `replace_step_dictionary` | Output-shape dictionary; treat as user data. |
+| `knowledgeSync.fieldMapping` | surgical | `replace_step_dictionary` | Source→target dict; same trap as `fieldUpdates`. |
+| `renderer.config` (when preserving sibling keys matters) | surgical / `update_step` | `replace_step_path` on the nested key, or full `renderer.config` + `replace` | Surgical wrappers replace the owning top-level field safely. |
 | `entryConditions.criteria` (when preserving the rest of `entryConditions`) | `update_step` | `updates: { entryConditions: {...full block...} }` | Send the full `entryConditions` block; one-level merge already does the right thing for direct children. |
-| Removing a step input or stale field | `update_step` | `unset: ["stepInputData.oldKey"]` | Cleanest way to remove. Path must exist on the original. |
+| Removing a step input or stale field | surgical / `update_step` | `unset_step_path` or `unset: ["stepInputData.oldKey"]` | Path must exist on the original. |
 | `context.inputPages`, `context.outputPages`, `context.executionInputConfig` | `update_workflow_context` | Three explicit verbs (`updates` / `replace` / `unset`) on workflow-relative paths. Compatibility: `{ contextKey, value }` still accepted for wholesale per-key replacement. | **Workflow-level, not step-level.** `update_step` cannot reach `context.*` and vice versa. |
 | `metadata` | `update_workflow_context` | Same three verbs on `metadata.*` paths | Workflow-level. Metadata bypasses the draft snapshot — even on live workflows it writes direct to the Pipeline row, immediately. |
 
@@ -449,7 +465,7 @@ Flip the flag via `update_workflow_context` — fetch first, merge locally, repl
 
 ⚠ **`discard_draft` only reverts pending context (and step) changes — NOT metadata.** Metadata writes via `update_workflow_context` bypass the draft and apply immediately to the live Pipeline row. If you need a single rollback point covering metadata too, `create_snapshot` before the edit. See [`docs/MCP_STEP_EDITING.md`](../docs/MCP_STEP_EDITING.md) for the full atomicity contract.
 
-**Never** send a full `steps[]` array via `update_workflow`. Use `update_step`, `add_step`, `remove_step` instead.
+**Never** send a full `steps[]` array via `update_workflow`. Use surgical path tools, `update_step`, `add_step`, `remove_step` instead.
 
 For the deep reference (StepMergeError codes, dot-path validation rules, full diff semantics) see [`docs/MCP_STEP_EDITING.md`](../docs/MCP_STEP_EDITING.md).
 
@@ -504,8 +520,10 @@ item URL.
 | Tool | Description |
 |------|-------------|
 | `list_apps` | List available apps and integrations |
+| `list_connections` | List which app connections are configured |
+| `verify_app_connection` | Verify native OAuth health without executing an app action |
 | `get_app_actions` | Get action schemas for an app |
-| `test_app_action` | Test an app action without creating a workflow |
+| `test_app_action` | Execute one app action in isolation without creating a workflow |
 | `test_ai_action` | Test an AI prompt without creating a workflow |
 | `test_code_action` | Test JavaScript code in the same sandboxed VM as production |
 | `get_step_schema` | Get allowed PipelineStep fields grouped by category |
@@ -570,6 +588,8 @@ Do not start high-volume prompts with `INPUTS`, `{{currentItem}}`, `{{steps.*}}`
 | `update_workspace_executive_summary` | Write the workspace-wide executive summary on the Workspace Assistant card |
 | `list_pinned_outputs` | List output pages pinned to the workspace home/sidebar |
 | `set_output_page_pin` | Pin or unpin a workflow output page on the workspace home/sidebar |
+| `inspect_home_recent_tab` | Inspect the Home tabs, the default tab, the display-only Home Recent tab config, and the current workspace revision |
+| `configure_home_recent_tab` | Configure or reset bounded recent-run sources, optional navigation CTAs, and which Home tab opens by default |
 | `list_workspace_views` | List saved workspace view manifests and source/action guidance |
 | `create_workspace_view` | Create a saved operating-surface manifest over KG, workflows, approvals, agents, routines, actions, output pages, external APIs, or custom sources |
 | `get_workspace_view` | Get one saved workspace view by id or key |
@@ -648,14 +668,14 @@ Billing-period reporting is separate from calendar-month reporting and should no
 
 ### Agents
 
-First-class workspace agents with identity, instructions, tools, config files, and assigned workflows. All agents are conversational (chat-only). For scheduled/autonomous work, attach routines via `create_routine`. `SOUL.md` and `TOOLS.md` live in `configFiles`; reflection context (`JOURNAL.md`, `OBJECTIVES.md`, `PEOPLE.md`) lives as linked AgentFiles and is auto-seeded for active chat-only reflection agents. Agents decide what durable signal belongs in those files; AgentLed only provides scoped storage and scheduled Reflection. An agent created entirely via MCP renders identically to one built in the Agent Wizard.
+First-class workspace AI Agents with identity, instructions, tools, config files, and assigned workflows. All agents are conversational by default. For scheduled/autonomous work, attach routines via `create_routine` to create an AI Agent with routines. `SOUL.md` and `TOOLS.md` live in `configFiles`; reflection context (`JOURNAL.md`, `OBJECTIVES.md`, `PEOPLE.md`) lives as linked AgentFiles and is auto-seeded for active AI Agents using reflection. Agents decide what durable signal belongs in those files; AgentLed only provides scoped storage and scheduled Reflection. An agent created entirely via MCP renders identically to one built in the Agent Wizard.
 
 | Tool | Description |
 |------|-------------|
 | `list_agents` | List agents in the workspace (filter by status: active, paused, draft) |
 | `get_agent` | Get full agent config — instructions, files, workflows, attached routines |
-| `create_agent` | Create an agent. Accepts `agentType` presets (personal-assistant, competitive-researcher, social-media-marketer, customer-support, content-marketer, lead-qualifier, deal-sourcer, custom), `enabledApps`, `appPermissions`, `assignedWorkflowIds`, `linkedFileIds`, `configFiles` (SOUL.md/TOOLS.md), `avatar_icon_name`, `avatar_color`, `chatModel`, `activate: true` |
-| `update_agent` | Partial update — same fields as `create_agent`; `updates.slug` renames the agent email slug, moves the `AgentEntity` id to `{slug}@{workspace}`, and rebinds routines/file links/channel sessions/chat sessions where available |
+| `create_agent` | Create an agent. Accepts `agentType` presets (personal-assistant, competitive-researcher, social-media-marketer, customer-support, content-marketer, lead-qualifier, deal-sourcer, custom), `enabledApps`, `appPermissions`, `assignedWorkflowIds`, `linkedFileIds`, `configFiles` (SOUL.md/TOOLS.md), `avatar_icon_name`, `avatar_color`, `chatModel`, `activate: true` or `status: "active"`. Unknown fields are rejected; daily credit caps and model tier belong on routines (`create_routine`) |
+| `update_agent` | Surgical update via `updates` / `replace` / `unset` (fields: name, slug, description, instructions, goals, chatModel, status, enabledApps, enabledActions, appPermissions, skillIds, assignedWorkflowIds, linkedFileIds, configFiles, avatar). `status: "active"` runs the activation check and returns its errors; `updates.slug` renames the agent email slug, moves the `AgentEntity` id to `{slug}@{workspace}`, and rebinds routines/file links/channel sessions/chat sessions where available |
 | `activate_agent` | Activate an agent (draft/paused → active). Attached routines begin running on schedule |
 | `pause_agent` | Pause an active agent. Attached routines stop until resumed |
 | `manage_agent_workflows` | Add/remove/set the workflows assigned to an agent without rewriting the full config |
@@ -663,6 +683,11 @@ First-class workspace agents with identity, instructions, tools, config files, a
 | `chat_with_agent` | Send a message to a specific agent. Multi-turn via `session_id` |
 
 Slug convention: `slug` is the short role ID used in URLs and email addresses. Keep `Agent` in the display name when useful, but do not append `-agent` to the slug just because the display name includes it; for example, `Deal Sourcing Agent` should use `deal-sourcing@{workspace}.agentled.ai`, not `deal-sourcing-agent@{workspace}.agentled.ai`.
+
+
+#### Built-in app result cache
+
+Separate from prompt caching: many app actions reuse prior results via workspace KnowledgeRow defaults. See the Agentled skill section **Built-in app result cache** (`skills/agentled/SKILL.md`). MCP rerun tools default `forceWithoutCache: true`.
 
 #### Agent Files
 
@@ -817,7 +842,8 @@ chat("Looks good, publish it as live", session_id: "mcp-chat-ws123-1711...")
 
 | Tool | Description |
 |------|-------------|
-| `submit_feedback_to_agentled` | Ask a question, file a bug, request a feature, or escalate an issue. Types: `ask`, `bug`, `feature_request`, `escalation`. Provide `userEmail` if you want a reply. |
+| `submit_feedback_to_agentled` | Ask a question, file a bug, request a feature, or escalate an issue. Save the returned `feedbackId` for follow-up; `userEmail` chooses the optional email reply address. |
+| `get_feedback` | Read status and the latest Agentled response by `feedbackId` within the authenticated workspace. A null response means no team reply yet. |
 
 ### Coming from n8n?
 

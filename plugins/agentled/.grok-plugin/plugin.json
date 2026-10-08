@@ -1,6 +1,6 @@
 {
   "name": "agentled",
-  "version": "0.19.3",
+  "version": "0.20.0",
   "description": "Build, validate, and run AgentLed workflows from Grok Build through the AgentLed MCP server.",
   "author": {
     "name": "AgentLed",

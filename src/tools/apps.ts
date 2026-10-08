@@ -76,6 +76,28 @@ Use this to check which apps are configured before running workflows that depend
     );
 
     server.tool(
+        'verify_app_connection',
+        `Verify whether a native OAuth connection is currently usable without executing an app action.
+Returns only a provider-neutral state, safe account label, and checkedAt timestamp. States are healthy, refresh-required, reconnect-required, missing-scope, provider-unavailable, or unsupported.
+API-key callers receive unsupported for user-owned native OAuth connections because their tokens remain available only to the authenticated Agentled workspace UI and authorized workflow runtime.
+Use list_connections to inspect safe connection metadata. Ask the user to verify from Workspace Settings > Integrations or run the action through an existing workflow; do not treat test_app_action as an OAuth-token escalation path.`,
+        {
+            appId: z.string().describe('App ID to verify (native Gmail is the first supported provider).'),
+            accountId: z.string().optional().describe('Optional connection/account ID from list_connections.'),
+        },
+        async ({ appId, accountId }, extra) => {
+            const client = clientFactory(extra);
+            const result = await client.verifyAppConnection(appId, accountId);
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify(result, null, 2),
+                }],
+            };
+        },
+    );
+
+    server.tool(
         'get_app_actions',
         `Get detailed action schemas for a specific app. Returns input parameters, output fields, and credit costs.
 Use this to understand exactly what inputs an action needs when building workflow steps.`,

@@ -104,6 +104,7 @@ export function registerUseCaseTools(server: McpServer, clientFactory: ClientFac
     const kitPreviewShape = {
         key: z.string().optional().describe('Stable workspace-local use-case key, e.g. business-intro'),
         workspaceSlug: z.string().optional().describe('Optional workspace slug for readable preview ids'),
+        locale: z.string().optional().describe('Workflow-agent locale bound into the exact preview; defaults to en'),
         name: z.string().min(1).describe('Use-case display name'),
         description: z.string().optional().describe('Use-case description'),
         setupHint: z.string().optional().describe('Setup hint for the UI'),
@@ -145,9 +146,9 @@ Use this before building or changing a multi-workflow business goal so you can r
 
     server.tool(
         'preview_use_case_kit',
-        `Preview the atomic operation plan for a Source -> KG -> Process WorkspaceUseCase kit.
+        `Preview the shared paused-package plan for a Source -> KG -> Process WorkspaceUseCase kit.
 
-Use this before creating multiple related workflows for sourcing, intake, monitoring, business intros, or other shared-tail use cases. It returns the planned WorkspaceUseCase record, knowledge list, source workflows, shared tail, optional orchestrator or receiver, and link operations in deterministic order. A shared-assistant-sourcing-v1 profile can be atomically provisioned after this preview is reviewed. This is dry-run only: it does not create records, workflows, KG rows, sends, provider writes, routine runs, or spend credits.`,
+Use this before creating multiple related workflows for sourcing, intake, monitoring, business intros, or other shared-tail use cases. The server compiles the typed kit into a workspace-local compatibility package and returns its exact signed preview. Review and preserve that preview for provision_use_case_kit. This is read-only: it does not create records, workflows, KG rows, sends, provider writes, routine runs, or spend credits.`,
         kitPreviewShape,
         async (input, extra) => {
             const client = clientFactory(extra);
@@ -163,13 +164,13 @@ Use this before creating multiple related workflows for sourcing, intake, monito
 
     server.tool(
         'provision_use_case_kit',
-        `Provision a previously reviewed Source -> KG -> Process WorkspaceUseCase kit.
+        `Deprecated compatibility alias for applying a previously reviewed Source -> KG -> Process WorkspaceUseCase package.
 
-Use preview_use_case_kit first, review the deterministic plan, then call this only when the user explicitly approves the write. This creates the WorkspaceUseCase record, knowledge-list schema, and concrete workflows carried in payload.pipeline, then links them on the use-case record. shared-assistant-sourcing-v1 profiles atomically add their receiver, operating guide, capped configuration, and additive existing-assistant update. It does not run workflows, insert KG rows, send messages, write to external providers, trigger routines, make approval decisions, or spend credits. Requires confirmToken exactly "PROVISION_USE_CASE_KIT".`,
+Use preview_use_case_kit first, review the deterministic plan, and pass back its exact signed preview only after the user approves those writes. The server recompiles the typed kit and rejects any changed payload, stale preview, collision, or mismatched binding. This delegates to the shared paused package lifecycle; it does not run workflows, insert KG rows, send messages, write to external providers, trigger routines, make approval decisions, or spend credits. Requires confirmToken exactly "PROVISION_USE_CASE_KIT" and the exact preview object.`,
         {
             ...kitPreviewShape,
             confirmToken: z.literal('PROVISION_USE_CASE_KIT').describe('Required explicit confirmation token for kit provisioning writes'),
-            locale: z.string().optional().describe('Locale used when assigning workflow agent language; defaults to en'),
+            preview: z.record(z.unknown()).describe('Exact signed preview object returned by preview_use_case_kit'),
         },
         async (input, extra) => {
             const client = clientFactory(extra);

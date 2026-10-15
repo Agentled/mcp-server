@@ -16,6 +16,15 @@
   providers, spend credits, change approvals, send, publish, or mutate customer
   records.
 
+## [0.20.1] - 2026-10-15
+
+### Wait-step documentation
+
+- Corrected the bundled MCP/plugin wait-step example to use `pipelineStepStartConditions.trigger.config.delay`.
+- Documented unsupported duration fields and the current silent zero-delay result. Runtime behavior is unchanged.
+- Bumped the bundled MCP/plugin Agentled skill to 0.6.2.
+- Includes previously merged GTM operating-guide updates and the current Claude model example.
+
 ## [0.19.2] - MCP Server
 
 ### Typed onboarding-goal management

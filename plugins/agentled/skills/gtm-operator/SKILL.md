@@ -1,10 +1,10 @@
 ---
 name: gtm-operator
-version: 0.17.0
+version: 0.25.0
 description: Start from saved company context and finish a useful GTM result in one run: find and qualify 2-3 accounts, enrich likely buyers, save private work, and prepare outreach drafts before improving from feedback.
 category: gtm
-allowedApps: agentled, web-scraping, kg, hunter, clay, gmail, linkedin, dripify
-allowedActions: web-scraping.scrape, agentled.google_maps, agentled.linkedin_post_search, agentled.get-linkedin-company-from-url, agentled.get-linkedin-profile-from-url, agentled.find-linkedin-profile-url, agentled.linkedin_company_posts, agentled.linkedin_profile_posts, hunter.find-email-person-domain, hunter.get-emails-from-company-domain, kg.read-text, kg.get-rows-by-ids, kg.upsert-rows, clay.search-companies, clay.search-people, clay.get-routine-results, clay.get-query-reference, clay.send-to-webhook
+allowedApps: agentled, web-scraping, kg, hunter, clay, companies-house, gmail, linkedin, dripify, http-request
+allowedActions: http-request.request, web-scraping.scrape, agentled.google_maps, agentled.linkedin_post_search, agentled.get-linkedin-company-from-url, agentled.get-linkedin-profile-from-url, agentled.find-linkedin-profile-url, agentled.linkedin_company_posts, agentled.linkedin_profile_posts, hunter.find-email-person-domain, hunter.get-emails-from-company-domain, kg.read-text, kg.write-text, kg.get-rows-by-ids, kg.upsert-rows, clay.search-companies, clay.search-people, clay.get-routine-results, clay.get-query-reference, clay.send-to-webhook, companies-house.advanced-search, companies-house.company-profile, companies-house.officers
 relevanceKeywords: ICP, prospect research, lead discovery, local business prospecting, qualification, enrichment, Clay, Hunter, LinkedIn, Instantly, outreach draft, GTM, feedback, automation
 ---
 
@@ -22,7 +22,7 @@ When onboarding or workspace context already provides a company URL, do not ask 
 2. State one or two concrete observations about the company and continue; the user can correct them without blocking the first result.
 3. State a short draft ICP with clearly labeled assumptions. Ask at most one compact question only when a missing answer would materially change the first search.
 4. Research exactly 2-3 source-backed prospect examples. Prefer first-party company evidence and fresh public sources. Show why each might fit, the strongest evidence, the main uncertainty, and the source URLs.
-5. For every promising example, use available LinkedIn and Hunter actions to identify a likely buyer and usable contact path. Follow "Finding a contact email" below: use `hunter.get-emails-from-company-domain` as soon as a promising company domain is known, and refine a named person with `hunter.find-email-person-domain`.
+5. For every promising example, use available LinkedIn, Hunter and connected Clay actions to identify a likely buyer and usable contact path. Follow "Finding a contact email" below: use `hunter.get-emails-from-company-domain` as soon as a promising company domain is known, and refine a named person with `hunter.find-email-person-domain`.
 6. Save each qualified account to the workspace's `lead_generation_candidates` list with `kg.upsert-rows`, using the field and stage definitions in "Discover and qualify" below. Set the row `userKey` to the normalized company domain so re-running the search updates the same lead instead of duplicating it. Read the returned `rowId` values back with `kg.get-rows-by-ids` and verify the company, evidence, contact, stage, and next action before claiming the result was saved. Research, enrichment, private same-workspace saves, and drafts do not need action-by-action confirmation when they are part of the user's requested GTM job.
 7. Ask for one compact feedback choice, for example: "Which is closest: 1, 2, 3, or none?" Also accept natural-language corrections. Use the answer to refine the next sample without turning the conversation into a form.
 
@@ -88,6 +88,15 @@ Write action and readback:
 
 If the workspace does not allow the write, the integration's authorized scopes do not include `kg.upsert-rows` for `gtm-stack-agreements`, or the user has not yet confirmed, surface the unverified stack in the current conversation only and explain that the agreed setup will need to be reconfirmed on the next turn.
 
+## Segment changes and the company email rule
+
+You own the pitch, the target split and the send schedule. The user's gate is the email itself: they approve or reject each email in the approval list before it sends. Do not stop to ask the user to approve a template, a split or a schedule; decide, save your reasoning, and carry on to drafts. If the user gives direction on copy or targeting, follow it. When the target segment changes (in conversation or on returning to saved work), write a pitch for the new segment before drafting recipient emails for it.
+
+1. **Read what is saved.** Use `kg.read-text` on `company.profile` (and any saved email rule) to see the current target and approved copy. Reuse existing keys; do not create competing sources of truth.
+2. **Write the pitch for the new segment.** Write it from the company profile, the segment's buyer and problem, and the evidence you gathered. Say what it assumes. Do not reuse another segment's angle or invent claims.
+3. **Save the copy.** Use `kg.write-text` (find + replace for an existing rule) to save the subject/body with the segment it is for and what it assumes, then read it back.
+4. **Draft from the saved copy.** Fill only the recipient placeholders. The user approves every email before it sends, so an email drafted from an earlier pitch is the user's call to send or reject; point out when a pending draft uses a different pitch than the current one.
+
 ## Progressive GTM ladder
 
 Advance only as the user sees useful results.
@@ -117,6 +126,9 @@ negotiable.
 - `qualificationReason` — The specific evidence that this account fits: industry, signal, buyer match. Not a generic label. Leave empty while fit is still unclear. Shown in: Record page, and the Qualified milestone.
 - `nextAction` — A specific next step for THIS company, e.g. "Draft outreach to the founder". Never a placeholder like "Follow up". Shown in: Next action column.
 - `founderEmail` — The contact's email once found. When outreach may only use public role addresses, this is the company's role address (info@, press@, hr@) rather than a person's. Leave empty rather than guessing an address. Shown in: Record page contact links.
+- `emailEvidence` — Email evidence label: "Verified by provider" only with explicit deliverable/valid verification for this exact person and work address; "Published on site" when the exact address is publicly listed by the firm or person (including their LinkedIn); "Pattern guess" for an inferred address; "Unverified" otherwise. Confidence scores alone are not verification. Save this together with every email update. Shown in: Email evidence column and record profile.
+- `emailEvidenceSource` — Email-specific evidence: provider action, exact address, verification status and checked time, or the exact publication URL and quoted address. Keep lead sourceUrl for account discovery. Update this together with the email so evidence cannot describe a previous address. Shown in: Record profile.
+- `emailCandidate` — Optional inferred or unverified email for research only. Keep founderEmail empty for pattern guesses and unverified candidates; never mark them ready_for_outreach. Set nextAction to verify the address or use LinkedIn. Shown in: Record profile.
 - `linkedinUrl` — The contact's or company's LinkedIn profile URL. Shown in: Record page contact links.
 - `draft` — The outreach draft body, once written. Drafting is not sending. Shown in: Record page "Outreach draft" block, and the Outreach drafted milestone.
 - `source` — Where the lead came from, e.g. `linkedin`, `web search`. Shown in: Source column.
@@ -132,7 +144,7 @@ per row, because leads in one call are usually at different stages:
 
 - `new` — the lead is saved but not yet qualified.
 - `qualified` — qualificationReason is set and backed by evidence you actually gathered.
-- `ready_for_outreach` — a draft exists and is awaiting review.
+- `ready_for_outreach` — a draft exists and is awaiting review, founderEmail is suitable under the workspace rules, and emailEvidence is Verified by provider or Published on site; Pattern guess and Unverified candidates stay qualified.
 - `contacted` — outreach was actually sent.
 
 Never advance a stage to look further along than the work actually is.
@@ -144,8 +156,10 @@ Never advance a stage to look further along than the work actually is.
   "rowData": {
     "company": "Seedtag",
     "qualificationReason": "Madrid adtech selling privacy-first contextual advertising to advertisers and publishers; fits the outbound-heavy mid-market profile.",
-    "nextAction": "Draft outreach to George Goddard, Senior Director of Sales",
-    "founderEmail": "georgegoddard@seedtag.com",
+    "nextAction": "Verify George Goddard work email or use LinkedIn",
+    "emailEvidence": "Unverified",
+    "emailEvidenceSource": "Hunter person lookup: georgegoddard@seedtag.com; returned address and confidence only, verification not supplied; checked at 2026-10-11T10:00:00Z",
+    "emailCandidate": "georgegoddard@seedtag.com",
     "linkedinUrl": "https://www.linkedin.com/company/seedtag/",
     "source": "web search",
     "sourceUrl": "https://www.seedtag.com/",
@@ -175,9 +189,9 @@ allows:
    and move the stage to `qualified` only when that evidence is real, by setting
    `status: 'qualified'` on that row's envelope. A lead you could not verify
    stays at `new` with an honest next action.
-3. **Draft the outreach.** Write one short, evidence-specific draft per
+3. **Draft the outreach.** Before writing any `draft`, make sure the segment's pitch is written and saved (see above). Write one short, evidence-specific draft per
    qualified lead into `draft`, referencing the actual signal you found, and set
-   that row's `status` to `ready_for_outreach`. Drafting is not sending.
+   that row's `status` to `ready_for_outreach` only when `founderEmail` is suitable under the workspace rules and `emailEvidence` is `Verified by provider` or `Published on site`. Guessed or unverified contacts stay at `qualified` with verification as the next action. Drafting is not sending.
 4. **Set the next action.** Every row ends with a `nextAction` that names the
    specific next step for that company. Never leave it blank or generic.
 
@@ -216,7 +230,7 @@ the user has seen a result, not before.
 
 ### 2d. Finding a contact email
 
-Use Hunter to find the contact email. Do not read pages one by one with web search to hunt for an address; Hunter returns every address it knows for the domain, with the pages it found each one on, in a single call.
+Use Hunter first and reuse its result. If the named person + domain lookup returns no suitable email, use the ordered fallback below before scraping more pages. A provider result is evidence to inspect, not automatic verification.
 
 - **Default.** As soon as the company domain is known, call `hunter.get-emails-from-company-domain` once for that domain and reuse the result. When a verified person's name is known, refine that contact with `hunter.find-email-person-domain`.
 - **Public role addresses only.** When the workspace's outreach rules or company profile say outreach may use only a company's public role address (for example strict B2B rules such as Spain's LSSI art. 21 or GDPR, or "public contact, press or HR address only"), work in this mode:
@@ -224,8 +238,18 @@ Use Hunter to find the contact email. Do not read pages one by one with web sear
   2. Prefer addresses with `foundOnCompanyDomain: true`: the company publishes them itself. Use an address found only on third-party pages when no company-published one fits, and say so.
   3. Choose by role fit, in this order: people/HR/culture (`rrhh`, `hr`, `people`, `cultura`, `talento`, `careers`), then press/communication (`prensa`, `press`, `comunicacion`), then general contact (`info`, `hola`, `hello`, `contacto`, `contact`).
   4. Skip legal, privacy or data-protection, billing, support or customer-service, and bookings addresses unless the user explicitly allows them.
-- **Save the result.** Write the chosen address to `founderEmail` (the field the lead table and outreach read) even when it is a role address, put the page Hunter found it on in `sourceUrl`, and set `provider` to `Hunter`. Tell the user which provider found it.
-- **Nothing suitable.** If Hunter returns nothing suitable, fall back to the company's own contact, press or careers pages. Otherwise leave `founderEmail` empty and state why in `nextAction`. Never guess an address.
+- **Named-person fallback order.** After `hunter.find-email-person-domain` finds nothing for the verified name + work domain:
+  1. Try the already-connected `clay.search-people` once with the person's name and current company/domain. Read `clay.get-query-reference` for `entity: "people"` before a filtered query; use the documented fields and SELECT grammar, never guessed syntax. Request one bounded page (`limit: 5`), match the exact person and current employer/domain, and inspect any work email and verification evidence. Reuse existing search results. Do not paginate or trigger paid `clay.run-routine` enrichment automatically. Missing/expired connection, no matching email, quota or approval block: state the gap and continue to public sources without bypassing it.
+  2. Check the firm's own contact/team/press/careers page for a published address using available `web-scraping.scrape`.
+  3. Check the person's or firm's public LinkedIn information using the reviewed LinkedIn actions. A matching profile proves identity, not an email. Only an exact publicly listed work address is publication evidence.
+  Stop on suitable evidence; if none exists, return the partial result with a verification or LinkedIn next action. Never repeat the failed Hunter lookup or scrape a site page by page indefinitely. Respect public-role-only rules throughout: a person's address from Clay or LinkedIn is unsuitable in that mode.
+- **Label every email by evidence.** Use these exact `emailEvidence` values:
+  - `Verified by provider`: the provider explicitly reports the exact work email as valid/deliverable for the matched person and current employer. A confidence score, a returned address, catch-all/accept-all, unknown, risky or invalid status is insufficient. The current Hunter person finder exposes email and confidence, not verification: label that response `Unverified` unless separate publication or explicit provider verification evidence exists.
+  - `Published on site`: the firm or person publicly lists the exact address on its own site or public LinkedIn. Save the URL and address excerpt; this proves publication, not deliverability.
+  - `Pattern guess`: an address inferred from a naming pattern. Research only, never send-ready.
+  - `Unverified`: an address returned without explicit verification or first-party publication. Research only until stronger evidence is found.
+- **Save and read back.** Save suitable addresses to `founderEmail`, their `emailEvidence` and `emailEvidenceSource` (provider action + exact email + status + checked time, or publication URL + exact address). Preserve the account's `sourceUrl`; email provenance belongs in `emailEvidenceSource`. Save guesses/unverified addresses only to `emailCandidate`, leave `founderEmail` empty, keep the lead out of `ready_for_outreach`, and set `nextAction` to verification or LinkedIn. On replacement update email and evidence together using `mergeStrategy: "merge"`, clearing obsolete fields; read back the row before claiming it is saved. Never claim a guess is verified or ready to send. Published or verified contact evidence still does not grant outreach approval.
+- **Credit and approval limits.** Use existing workspace action permissions, provider connection, credit and approval gates for every call. The fallback grants no new access, credit budget, routine, webhook write or send authority. If a paid action needs approval, keep it pending and continue safe public research.
 
 ### 2e. Keeping LinkedIn leads in their own list
 
@@ -283,7 +307,7 @@ When the chosen channel is email, pick the right tool for the stack:
 
 - If the workspace uses Clay for email, the draft and send belong to Clay's configured sequencer. AgentLed surfaces evidence and review, and the send is Clay's.
 - If the workspace prefers AgentLed to own the send, use AgentLed's reviewed email provider and produce a draft that goes through the existing approval flow. Treat Instantly as a conditional candidate for email sequencing: verify the exact feature, the workspace's geography, account access, budget, and whether AgentLed exposes a supported action for it before offering execution. A recommendation does not imply native integration readiness.
-- To email leads saved on `lead_generation_candidates` through AgentLed, call `startLeadOutreach` with their `userKey` values. It starts one approval-gated run per lead, skips leads that have no valid saved email, are already contacted or were already launched (and says why), and sends nothing until the user approves each email.
+- Before calling `startLeadOutreach` or launching outreach through any sequencer, make sure the segment's pitch is saved (see above). To email leads saved on `lead_generation_candidates` through AgentLed, call `startLeadOutreach` with their `userKey` values. It starts one approval-gated run per lead, skips leads that have no valid saved email, are already contacted or were already launched (and says why), and sends nothing until the user approves each email.
 - If the user has neither, propose the smallest setup that fits their volume and goals, and ask before changing providers.
 
 When the chosen channel is US-based website visitor identification and the workspace has meaningful US traffic, Instantly Website Visitors is a conditional candidate. Geography, tracking pixel prerequisites, and permitted use must be checked for the user's case. Treat the feature as worth evaluating, not as a universal compliance claim or a default. Installing a tracking pixel, purchasing credits, or enrolling contacts remains a separately scoped action.
@@ -316,6 +340,16 @@ Apply these habits within the current conversation or authorized job; they do no
 - **Identify the weakest stage.** When asked to improve results, inspect the available evidence in order: targeting and persona, delivery health (verification, bounces, complaints), replies and messaging, then qualified opportunities and business outcomes. Name the earliest supported problem and recommend one next action. If evidence is missing, state a hypothesis and the smallest check needed; do not declare a cause, increase volume, or rewrite copy by default.
 - **Turn outcomes into one experiment.** Review a completed cohort using its dates, denominators, approved message variant, and observed replies, qualified opportunities, and business outcomes. Use the workspace's actual goal, such as qualified applications for an event. Separate observations from interpretation and attribution from causation. Recommend one variable to change in the next cohort and how to judge it; keep the current cohort unchanged. Small or incomplete samples mean insufficient evidence, not a winner. Preserve account history, corrections, and opt-outs through existing authorized records. Report: observed result, uncertainty, next change, success measure. A recommendation does not launch an experiment or change targeting, drafts, schedules, or workspace records.
 
+## Run outreach as a test you lead
+
+You are testing two things for the user: whether the **target** is right (who replies) and whether the **message** is right (what they reply to). Lead this; do not wait to be asked.
+
+- **One variable at a time.** Early on, test the target: split a batch across two segments within the approved ICP (for example two kinds of specialist firm) with each segment's saved pitch. Once a segment gets replies, test the message inside it (one changed element, e.g. the why-now or the offer line). Decide the split, save what you expect to learn, and draft; do not wait for a yes on the split.
+- **Record the segment on every lead** you save (a short label such as `segment` on the prospect row), so results can be read back per segment.
+- **Space the sends.** Set send times spread across the recipient's local business hours (roughly 08:30-11:30 and 13:30-16:30) and across days, never the whole batch at one time, and keep within the sender's daily limit (default 15 new emails per day if none is saved). Earlier is better than later in the week. Put the proposed time on each draft; the user can change it when approving.
+- **Read results per segment.** After 3-5 business days, read the workflow's tracking events (sent, opened, replied) and join them to the prospect rows by lead to count per segment. Report: sent, opened, replied, positive replies, and what that suggests, with the caveat that small numbers are signals, not proof.
+- **Propose the next batch from what you saw.** Keep the segment that gets replies, drop or replace the one that does not, or test a message change; say why in the test log and go ahead. Save each batch's segment split and result as a short knowledge text (e.g. `gtm_outreach_tests`) so the history survives across conversations.
+
 ## Close every turn with the next step
 
 Lead the work; do not leave the user to work out what comes next. End each turn with the single most useful next action, phrased as an offer the user can accept with "yes", and name its exact scope in counts and names. For example:
@@ -337,13 +371,78 @@ Rules for the offer and its chips:
 - Offer one step, not a menu: the recommended step, and at most two alternatives to it. When nothing useful is left to do, say so instead of inventing a step.
 - Do not add a question or chips when the user asked for a single read-only answer, such as a count, a lookup, or a status. Answer and stop.
 
+## Public contract signals
+
+Use public procurement data when the seller's saved ICP includes organisations that sell to the public sector. Skip it for unrelated ICPs. Start with UK Contracts Finder for London/UK and EU TED for Spain/Madrid. Awarded suppliers are themselves prospects: qualify their company, specialist offer and geography against the saved ICP rather than treating every notice buyer as a lead.
+
+### Access and approval
+
+Use the existing `http-request.request` action; no procurement app or provider connection is needed. Search is anonymous and free at these APIs, but Agentled execution/agent steps still use normal workspace credits. Tool recommendations here do not grant access.
+
+Keep the adaptive GTM profile's default apps/actions unchanged: it does not grant HTTP POST. For an authorised procurement job, the operator selects **HTTP Request & Connected API** and `http-request.request` in the agent's Apps/actions settings, enables write access (POST is classified as a write), and explicitly sets the request action to **Approval required**. The persisted permission must include `appPermissions["http-request"].actionApprovals["http-request.request"]: true` as well as `access: "write"`; this action override retains approval even under execute-first. An app-level approval toggle alone is insufficient under execute-first. Confirm the saved action permission before running.
+
+Approve each exact URL, method, headers and search body through the existing Agentled approval path. The approval covers only that search request. Do not disable request-action approval or auto-grant write access: generic HTTP write access is not restricted to these two URLs. A different URL or payload needs its own approval. Missing app/action access or read-only access means **Awaiting connection**; explain the required operator setting instead of silently skipping or widening permissions. Leave existing customer, credit, send and routine gates in force.
+
+### Tested search requests
+
+These are the exact baseline `http-request.request` inputs verified against the public APIs on 2026-10-09. Adapt keywords/CPVs, date window and geography from the saved ICP for actual research; the example training terms are not a universal targeting rule. Keep the first search bounded at 15 UK or 8 TED notices. Read `statusCode` and `body` from the action result; an error or empty response is not a verified prospect.
+
+UK Contracts Finder (POST search; the OCDS GET search did not apply the tested keyword filter):
+
+```json
+{
+  "url": "https://www.contractsfinder.service.gov.uk/api/rest/2/search_notices/json",
+  "method": "POST",
+  "headers": { "Content-Type": "application/json", "Accept": "application/json" },
+  "body": {
+    "searchCriteria": {
+      "keyword": "\"leadership development\" OR \"sales training\" OR \"management training\"",
+      "publishedFrom": "2026-01-01T00:00:00",
+      "types": ["Contract", "Opportunity", "Pipeline"]
+    },
+    "size": 15
+  }
+}
+```
+
+EU TED (Spain search; filter the returned place of performance for Madrid):
+
+```json
+{
+  "url": "https://api.ted.europa.eu/v3/notices/search",
+  "method": "POST",
+  "headers": { "Content-Type": "application/json", "Accept": "application/json" },
+  "body": {
+    "query": "classification-cpv IN (80500000 80530000 80532000 79414000) AND buyer-country IN (ESP) AND publication-date>=20260101",
+    "fields": ["publication-number", "notice-title", "buyer-name", "place-of-performance", "classification-cpv", "publication-date"],
+    "limit": 8,
+    "page": 1
+  }
+}
+```
+
+Madrid = NUTS `ES300`. Match that exact code in the returned place-of-performance values, including nested or repeated codes; do not infer Madrid from buyer-country `ESP` or the buyer's address. Deduplicate TED notices by publication-number and UK notices by notice ID before qualifying accounts. Multi-lot TED CPV matches are broad: inspect the title and relevant lot before treating a notice as evidence for the seller's offer. Keep only the relevant fields in the working result; do not paste the full repeated-code payload into the report. The TED baseline returns notice discovery fields, not proof of a supplier award, contract end date or deadline; open the official notice to verify those missing facts. If Madrid filtering yields no matches, report no verified Madrid matches in this bounded page, not no Madrid market.
+
+### Turn evidence into a why now
+
+- **Recent award:** verify award date, awarded supplier, scope and value in the official notice. A supplier may need delivery capacity or a complementary service; label that need as a hypothesis until company evidence supports it. The award proves the purchase, not interest in our seller.
+- **Contract ending soon:** verify the actual contract end date and compare it with the user's planning window. Publication date is not an end date; do not invent a renewal or claim an extension is impossible.
+- **Open opportunity:** verify status and submission deadline; use the official tender portal and clarification channel for participation. Buyers in an open tender are never contacted directly for sales outreach. Do not reuse notice contact details for cold email or LinkedIn messages.
+
+For each qualified account preserve the notice ID/official URL, buyer, supplier if known, relevant scope/lot, geography, event date, date checked, and which facts remain unknown in the existing private lead record's evidence fields. Deduplicate supplier accounts by normalized company domain using the existing lead schema. Write the why-now explanation from the actual returned evidence and saved ICP; no canned outreach or hardcoded company prose. Prepare supplier outreach drafts only within the existing user's scope and exact send-approval rails.
+
+After deployment, validate once per API from an internal workspace using the inputs above and exact request approval. Check the notice against its official source and verify that TED's payload and repeated place-of-performance codes can be inspected. Do not create a new procurement app unless that guide-driven TED smoke demonstrates a payload/parsing failure; record the failure before escalating. This smoke does not authorise customer executions, enrichment spend, outreach or recurring runs.
+
+API references: [Contracts Finder API](https://www.contractsfinder.service.gov.uk/apidocumentation) and [TED Search API](https://docs.ted.europa.eu/api/latest/search.html).
+
 ## Source routing
 
+- Companies House: for UK registered-company targets, use the connected `companies-house.advanced-search` to list firms by SIC code (for example 85590 training, 70229 management consultancy), registered-office location, active status and incorporation dates. Get the profile and `companies-house.officers` for named active directors, then verify the firm's actual website/work domain before Hunter person-and-domain lookup. A director listing is registry-role evidence, not proof of a current operational buyer role or a verified email. Apply the existing email evidence labels: Verified by provider, Published on site, Pattern guess, or Unverified. Configure the free REST API key only in workspace Connections; never put it in prompts, action inputs or workflow JSON. Each call reads one page; use `nextStartIndex` only for a bounded requested expansion, including when an officers page returns no directors but `hasMore` is true. `size` means results per page, not employee count; accounts filing type is not a revenue/headcount filter. On 429, stop and wait for the reported retry window (600 requests per five minutes); do not retry in a loop. If unconnected or denied, report the gap and continue safe public research.
 - Websites and `web-scraping.scrape`: first-party company facts, product evidence, positioning, customers, hiring, and other public proof.
 - `agentled.google_maps`: geography-bound local businesses, place discovery, Google Business Profile quality, categories, reviews, and location evidence.
 - Reviewed Agentled LinkedIn actions: company/profile identity, likely buyers, professional context, posts, and fresh intent or timing signals.
 - Hunter: use domain search to discover likely people and emails once a promising company domain is known (`type: "generic"` for public role addresses only); use person-and-domain lookup when a verified name is available.
-- Clay: selected-row enrichment or expansion after feedback, when the workspace connection is ready. Clay is also a candidate owner for outreach when the workspace already uses its sequencer.
+- Clay: connected people-search fallback after a named-person Hunter miss; selected-row enrichment or expansion after feedback, when the workspace connection is ready. Clay is also a candidate owner for outreach when the workspace already uses its sequencer.
 - Instantly: conditional candidate for email sequencing and US-based website visitor identification. Verify the exact feature, geography, account access, budget, and AgentLed action support before offering execution.
 - Knowledge actions: reuse saved company/ICP context and approved learning rather than asking the user to repeat it.
 

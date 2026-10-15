@@ -1,6 +1,6 @@
 ---
 name: agentled
-version: 0.6.1
+version: 0.6.2
 description: Build, manage, and execute Agentled AI workflows via MCP tools. Use when the user asks to create workflows, automate tasks, enrich leads, scrape websites, find emails, manage executions, or interact with any Agentled workspace capability.
 user-invocable: false
 ---
@@ -146,7 +146,7 @@ Every pipeline step **must** set `type` to one of these values. Any other value 
 | `return` | Terminal step for **child** workflows — returns data to the caller | `{ id, type: "return", name, returnConfig: { fields: [{ name, stepId, field }] } }` |
 | `milestone` | Terminal step for **top-level** workflows | `{ id, type: "milestone", name }` |
 | `share` | Create a public share URL for prior step output | `{ id, type: "share", name, shareConfig: { outputSteps, visibility }, next: { stepId } }` |
-| `wait` | Delay / pause between steps | `{ id, type: "wait", name, waitConfig: { durationMs } | { untilISO }, next: { stepId } }` |
+| `wait` | Delay / pause between steps | `{ id, type: "wait", name, pipelineStepStartConditions: { trigger: { type: "delay", config: { delay: "60s" } } }, next: { stepId } }` |
 | `branch` | Conditional routing to one of several paths | `{ id, type: "branch", name, branchConfig: { branches: [...] }, next: [...] }` |
 | `parallel` | Fan-out to parallel branches | `{ id, type: "parallel", name, parallelConfig: { branches: [...] }, next: { stepId } }` |
 | `loop` | Iterate over a collection as a first-class step (prefer `loopConfig` on an action step for most cases) | `{ id, type: "loop", name, loopConfig: {…}, next: { stepId } }` |
@@ -155,6 +155,8 @@ Every pipeline step **must** set `type` to one of these values. Any other value 
 | `manualAction` | Legacy — kept for backward compatibility; prefer `aiAction` or `appAction` |  |
 | `systemAction` | Legacy — kept for backward compatibility; prefer `appAction` |  |
 <!-- agentled-step-types:end -->
+
+For `wait`, set `pipelineStepStartConditions.trigger.config.delay` to a positive whole-number duration with a unit: `"60s"`, `"5m"`, `"1h"`, or `"1d"`. The runtime does not read `waitConfig.durationMs`, `waitConfig.untilISO`, `stepInputData.delayMs`, or `configuration.delayMs`. A missing or unparseable delay currently completes immediately with `{ delayed: true, delayMs: 0 }`; that result does not prove a wait occurred.
 
 > Use `get_step_schema` to retrieve the authoritative input/output schema for any step type.
 

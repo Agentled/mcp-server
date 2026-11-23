@@ -2,10 +2,7 @@
   "mcpServers": {
     "agentled": {
       "command": "npx",
-      "args": ["-y", "@agentled/mcp-server@0.20.2"],
-      "env": {
-        "AGENTLED_API_KEY": "${AGENTLED_API_KEY}"
-      }
+      "args": ["-y", "@agentled/mcp-server@0.20.2"]
     }
   }
 }

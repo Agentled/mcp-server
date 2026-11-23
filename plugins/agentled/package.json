@@ -1,0 +1,7 @@
+{
+  "name": "agentled-claude-plugin-runtime",
+  "private": true,
+  "version": "0.20.2",
+  "description": "Locked local runtime for the Agentled Claude plugin",
+  "dependencies": { "@agentled/mcp-server": "0.20.2" }
+}

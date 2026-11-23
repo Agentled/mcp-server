@@ -9,6 +9,16 @@
   "homepage": "https://www.agentled.ai/en",
   "repository": "https://github.com/Agentled/mcp-server",
   "license": "MIT",
+  "mcpServers": "./claude-mcp.json",
+  "userConfig": {
+    "api_key": {
+      "type": "string",
+      "title": "Agentled API key",
+      "description": "Create a key in Agentled Workspace Settings > Developer for the workspace you want Claude to use.",
+      "sensitive": true,
+      "required": true
+    }
+  },
   "keywords": [
     "agentled",
     "mcp",

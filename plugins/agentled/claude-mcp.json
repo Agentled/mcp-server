@@ -1,0 +1,7 @@
+{
+  "agentled": {
+    "command": "node",
+    "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/start-claude-mcp.mjs"],
+    "env": { "AGENTLED_API_KEY": "${user_config.api_key}" }
+  }
+}

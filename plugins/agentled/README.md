@@ -6,6 +6,31 @@ server in `mcp.json`. AgentLed remains authoritative for workspace context,
 tools, connections, approvals, credits, executions, receipts, recovery, and
 routines.
 
+## Claude Code and Cowork
+
+In Claude Code, install from the official Agentled source marketplace:
+
+```text
+/plugin install agentled --marketplace Agentled/mcp-server
+```
+
+Claude prompts for an Agentled API key; create it in Workspace Settings > Developer
+for the intended workspace. Treat the key as a secret. Installation does not grant
+permission to send, spend credits, or change workspace data.
+
+The Claude launcher uses `npm ci --ignore-scripts` with the committed
+`package-lock.json`, then starts that installed MCP server. Node.js and npm,
+network access to the npm registry, and a writable plugin folder are required.
+Installation errors go to stderr and stop startup. The locked runtime version is
+independent of the plugin's skill/manifest version; upgrading it requires updating
+both `package.json` and `package-lock.json` and repeating local tool discovery.
+The shared `.mcp.json` remains the version-pinned launcher for other local clients.
+
+This local MCP runtime works in Claude Code and local Cowork. Claude web chat loads
+the skills but does not run local MCP servers. Directory availability additionally
+requires Anthropic's organization verification and plugin review; a source package
+or successful local validation does not establish a live directory listing.
+
 ## Grok Build
 
 Grok Build discovers this package through `.grok-plugin/plugin.json` and the
